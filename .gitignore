@@ -1,0 +1,41 @@
+# Temporary files
+*~
+*.swp
+Backtrace.0
+*.tar.gz
+*_save
+*_bu
+out_*
+
+# AMReX build directories
+d/
+o/
+f/
+extern.f90
+AMReX_buildInfo.cpp
+tmp_build_dir/
+
+# Executable
+*.ex
+*.exe
+
+
+# Run output
+*.p3d
+plt*
+*plt*old*
+Backtrace*
+chk*
+
+# OSX files
+.DS_Store
+
+# Fuego pyc files
+*.pyc
+extract.py
+script.py
+
+# Folders
+ReactEvalCVODE/
+ToyPb_cvodeVSdvode/
+ReactEvalSUNDIALS3/
