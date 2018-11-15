@@ -1,0 +1,4 @@
+cEXE_sources+=USCII_v2.c
+
+VPATH_LOCATIONS +=  $(CHEM_DIR)/PMFs
+

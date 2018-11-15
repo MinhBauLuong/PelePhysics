@@ -1,0 +1,4 @@
+cEXE_sources+=ERC_nheptane.c
+
+VPATH_LOCATIONS +=  $(CHEM_DIR)/PMFs
+

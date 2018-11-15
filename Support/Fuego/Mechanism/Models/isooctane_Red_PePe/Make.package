@@ -1,0 +1,4 @@
+cEXE_sources+=IC8_LLNL_red.c
+
+VPATH_LOCATIONS +=  $(CHEM_DIR)/PMFs
+

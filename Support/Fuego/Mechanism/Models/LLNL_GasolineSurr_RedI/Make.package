@@ -1,0 +1,4 @@
+cEXE_sources+=LLNL_GasolineSurr_RedI.c
+
+VPATH_LOCATIONS +=  $(CHEM_DIR)/PMFs
+

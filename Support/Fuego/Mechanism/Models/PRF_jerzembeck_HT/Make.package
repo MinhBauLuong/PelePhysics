@@ -1,0 +1,4 @@
+cEXE_sources+=PRF_HT.c
+
+VPATH_LOCATIONS +=  $(CHEM_DIR)/PMFs
+
