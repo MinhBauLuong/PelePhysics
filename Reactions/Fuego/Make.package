@@ -1,2 +1,8 @@
 f90EXE_sources += actual_network.f90
-f90EXE_sources += actual_reactor.f90
+$f90EXE_sources += actual_reactor.f90
+$f90EXE_sources += actual_sdc.f90
+$f90EXE_sources += be_chem.f90
+$f90EXE_sources += mod_timers.f90
+
+CEXE_headers +=actual_Creactor.h  
+CEXE_sources+=actual_Creactor.cpp

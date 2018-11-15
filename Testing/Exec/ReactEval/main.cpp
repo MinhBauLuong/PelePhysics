@@ -22,6 +22,9 @@ main (int   argc,
 {
     Initialize(argc,argv);
 
+    Real strt_time, stop_time;
+    const int IOProc = ParallelDescriptor::IOProcessorNumber();
+
     ParmParse pp;
     
     std::string probin_file = "probin";
@@ -63,6 +66,7 @@ main (int   argc,
     MultiFab internal_energy(ba,dmap,1,num_grow);
 
     IntVect tilesize(D_DECL(10240,8,32));
+    strt_time = ParallelDescriptor::second();
     
 #ifdef _OPENMP
 #pragma omp parallel
@@ -88,6 +92,7 @@ main (int   argc,
     Real time = 0.; pp.query("time",time);
     Real dt=1.e-5; pp.query("dt",dt);
 
+
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -108,10 +113,16 @@ main (int   argc,
 		    &time, &dt);
     }
 
+    stop_time = ParallelDescriptor::second();
+    ParallelDescriptor::ReduceRealMax(stop_time,IOProc);
+    // Tell the I/O Processor to write out the "run time"
+    amrex::Print() << "Time = " << stop_time - strt_time << std::endl;
+
     ParmParse ppa("amr");
     std::string pltfile("plt");  ppa.query("plot_file",pltfile);
     std::string outfile = Concatenate(pltfile,1); // Need a number other than zero for reg test to pass
-    PlotFileFromMF(temperature,outfile);
+    PlotFileFromMF(mass_frac,outfile);
+    //PlotFileFromMF(temperature,outfile);
 
     extern_close();
     Finalize();

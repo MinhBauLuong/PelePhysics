@@ -1,0 +1,13 @@
+probin_file = probin
+n_cell = 1
+max_grid_size = 1
+
+dt = -5.0e-05
+dt = -2.0e-05
+
+write_plotfile = 1
+
+do_tiling = 0
+
+amr.plot_file       = plt
+#txtfile_in          = 1D_y_7530_DOD #1D_y_5105_2
