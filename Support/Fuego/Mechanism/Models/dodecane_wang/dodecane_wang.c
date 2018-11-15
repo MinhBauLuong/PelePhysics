@@ -82,6 +82,8 @@
 #define CKEQYR CKEQYR
 #define CKEQXR CKEQXR
 #define DWDOT DWDOT
+#define SPARSITY_INFO SPARSITY_INFO
+#define SPARSITY_PREPROC SPARSITY_PREPROC
 #define VCKHMS VCKHMS
 #define VCKPY VCKPY
 #define VCKWYR VCKWYR
@@ -168,6 +170,8 @@
 #define CKEQYR ckeqyr
 #define CKEQXR ckeqxr
 #define DWDOT dwdot
+#define SPARSITY_INFO sparsity_info
+#define SPARSITY_PREPROC sparsity_preproc
 #define VCKHMS vckhms
 #define VCKPY vckpy
 #define VCKWYR vckwyr
@@ -254,6 +258,8 @@
 #define CKEQYR ckeqyr_
 #define CKEQXR ckeqxr_
 #define DWDOT dwdot_
+#define SPARSITY_INFO sparsity_info_
+#define SPARSITY_PREPROC sparsity_preproc_
 #define VCKHMS vckhms_
 #define VCKPY vckpy_
 #define VCKWYR vckwyr_
@@ -376,6 +382,8 @@ void CKEQYR(double * restrict rho, double * restrict T, double * restrict y, int
 void CKEQXR(double * restrict rho, double * restrict T, double * restrict x, int * iwrk, double * restrict rwrk, double * restrict eqcon);
 void DWDOT(double * restrict J, double * restrict sc, double * restrict T, int * consP);
 void aJacobian(double * restrict J, double * restrict sc, double T, int consP);
+void SPARSITY_INFO(int * nJdata);
+void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs);
 void dcvpRdT(double * restrict species, double * restrict tc);
 void GET_T_GIVEN_EY(double * restrict e, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict t, int *ierr);
 void GET_T_GIVEN_HY(double * restrict h, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict t, int *ierr);
@@ -22624,6 +22632,57 @@ void DWDOT(double * restrict J, double * restrict sc, double * restrict Tp, int 
     }
 
     return;
+}
+
+/*compute the sparsity pattern Jacobian */
+void SPARSITY_INFO( int * nJdata)
+{
+    double c[56];
+    double J[3249];
+
+    for (int k=0; k<56; k++) {
+        c[k] = 1.0/56.0;
+    }
+
+    aJacobian(J, c, 1500.0, 0);
+
+    int nJdata_tmp = 0;
+    for (int k=0; k<3249; k++) {
+	// Debug version
+        if(J[k] != 0.0){
+	    nJdata_tmp = nJdata_tmp + 1;
+	    //printf("%d  ",k);
+	}
+    }
+
+    nJdata[0] = nJdata_tmp;
+    printf("\nAu total %d ",nJdata[0]);
+}
+
+/*compute the sparsity pattern Jacobian */
+void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs)
+{
+    double c[56];
+    double J[3249];
+
+    for (int k=0; k<56; k++) {
+        c[k] = 1.0/56.0;
+    }
+
+    aJacobian(J, c, 1500.0, 0);
+
+    colPtrs[0] = 0;
+    int nJdata_tmp = 0;
+    for (int k=0; k<57; k++) {
+        for (int l=0; l<57; l++) {
+            // Debug version
+            if(J[57*k + l] != 0.0){
+	        rowVals[nJdata_tmp] = l+1; 
+	        nJdata_tmp = nJdata_tmp + 1;
+	    }
+	}
+        colPtrs[k+1] = nJdata_tmp;
+    }
 }
 
 /*compute the reaction Jacobian */
