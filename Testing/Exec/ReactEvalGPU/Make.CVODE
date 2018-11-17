@@ -1,0 +1,2 @@
+INCLUDE_LOCATIONS += /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/srcdir/include/
+INCLUDE_LOCATIONS += /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/builddir/include/
