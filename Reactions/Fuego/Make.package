@@ -4,5 +4,11 @@ $f90EXE_sources += actual_sdc.f90
 $f90EXE_sources += be_chem.f90
 $f90EXE_sources += mod_timers.f90
 
-CEXE_headers +=actual_Creactor.h  
-CEXE_sources+=actual_Creactor.cpp
+ifeq ($(USE_CUDA_CVODE), TRUE)
+    CEXE_headers +=actual_Creactor_GPU.h  
+    CEXE_sources+=actual_Creactor_GPU.cpp
+else
+    CEXE_headers +=actual_Creactor.h  
+    CEXE_sources+=actual_Creactor.cpp
+endif
+

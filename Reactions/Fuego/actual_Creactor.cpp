@@ -105,7 +105,6 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	    /* Set CVSpils linear solver to LS */
 	    flag = CVSpilsSetLinearSolver(cvode_mem, LS);
 	    if(check_flag(&flag, "CVSpilsSetLinearSolver", 1)) return(1);
-
 	} else {
 	    amrex::Abort("\n--> Direct Sparse / Iterative Solvers not yet implemented ...\n");
 	}
@@ -117,6 +116,15 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
                 printf("\n--> With Analytical J\n");
                 flag = CVDlsSetJacFn(cvode_mem, cJac);
 	        if(check_flag(&flag, "CVDlsSetJacFn", 1)) return(1);
+	    } else if (iDense_Creact == 99) {
+                printf("\n--> With Jtv function \n");
+	        /* Set the JAcobian-times-vector function */
+	        flag = CVSpilsSetJacTimes(cvode_mem, NULL, jtv);
+	        if(check_flag(&flag, "CVSpilsSetJacTimes", 1)) return(1);
+	        /* Set the preconditioner solve and setup functions */
+	        flag = CVSpilsSetPreconditioner(cvode_mem, Precond, PSolve);
+	        if(check_flag(&flag, "CVSpilsSetPreconditioner", 1)) return(1);
+		printf("FLAG PRECOND %d\n", flag);
 	    } else {
 	        amrex::Abort("\n--> No Analytical J for Iterative Solvers");
 	    }
@@ -140,7 +148,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 
 	/* Ok we're done ...*/
         if (iverbose > 1) {
-	    printf(" --> DONE WITH INITIALIZATION, %d \n", iE_Creact);
+	    printf(" --> DONE WITH INITIALIZATION (CPU) %d \n", iE_Creact);
 	}
 
 	return(0);
@@ -395,6 +403,126 @@ static int cJac(realtype tn, N_Vector u, N_Vector fu, SUNMatrix J,
 
 }
 
+/* Jacobian-times-vector routine. */
+static int jtv(N_Vector v, N_Vector Jv, realtype t, N_Vector u, N_Vector fu, 
+			  void *user_data, N_Vector tmp)
+{
+  realtype *udata, *vdata, *Jvdata;
+  vdata  = N_VGetArrayPointer(v); 
+  udata  = N_VGetArrayPointer(u);
+  Jvdata = N_VGetArrayPointer(Jv);
+
+  int tid;
+  for (tid = 0; tid < NCELLS; tid ++) {
+	realtype rho, temp;
+	realtype massfrac[NEQ], activity[NEQ], molecular_weight[NEQ];
+	realtype J[(NEQ+1)*(NEQ+1)];
+	double rwrk;
+	int iwrk;
+
+        int offset = tid * (NEQ + 1); 
+
+        /* MW CGS */
+	ckwt_(&iwrk, &rwrk, molecular_weight);
+        /* rho MKS */ 
+	rho = 0.0;
+	for (int i = 0; i < NEQ; i++){
+            rho = rho + udata[offset + i];
+	}
+	for (int i = 0; i < NEQ; i++){
+            massfrac[i] = udata[offset + i]/rho;
+            activity[i] = udata[offset + i]/(molecular_weight[i]);
+	}
+        /* temp */
+	temp = udata[offset + NEQ];
+        /* NRG CGS */
+        if (iE_Creact == 1) {
+            int consP = 0 ;
+            dwdot_(J, activity, &temp, &consP);
+        } else {
+	    int consP = 1 ;
+            dwdot_(J, activity, &temp, &consP);
+        }
+
+	/* reinit */
+	for (int i = 0; i < NEQ+1; i++){
+	    Jvdata[offset + i] = 0.0;
+	}
+	/* COmpute */
+	for (int i = 0; i < NEQ; i++){
+            for (int j = 0; j < NEQ; j++){
+                Jvdata[offset + i] = Jvdata[offset + i] + J[j*(NEQ+1)+i] * vdata[offset + j] * molecular_weight[i] / molecular_weight[j];
+	    }
+		Jvdata[offset + i] = Jvdata[offset + i] + J[NEQ*(NEQ+1)+i] * vdata[offset + NEQ] * molecular_weight[i] / rho;
+	    }
+	    for (int j = 0; j < NEQ; j++){
+	        Jvdata[offset + NEQ] = Jvdata[offset + NEQ] + J[j*(NEQ+1)+NEQ] * vdata[offset + j]* rho / molecular_weight[j];
+	    }
+	    Jvdata[offset + NEQ] = Jvdata[offset + NEQ]  + J[(NEQ+1)*(NEQ+1)-1] * vdata[offset + NEQ] ;  
+  }
+
+	return(0);
+}
+
+static int Precond(realtype tn, N_Vector u, N_Vector fu, booleantype jok, 
+		booleantype *jcurPtr, realtype gamma, void *user_data)
+{
+  return(0);
+}
+
+static int PSolve(realtype tn, N_Vector u, N_Vector fu, N_Vector r, N_Vector z,
+                  realtype gamma, realtype delta, int lr, void *user_data)
+{
+  realtype *zdata;
+  realtype *rdata;
+  realtype *udata;
+
+  zdata = N_VGetArrayPointer(z);
+  udata  = N_VGetArrayPointer(u);
+  rdata  = N_VGetArrayPointer(r);
+
+  N_VScale(1.0, r, z);
+
+  //int tid;
+  //for (tid = 0; tid < NCELLS; tid ++) {
+  //    realtype J[NEQ+1];
+  //    int consP;
+  //    realtype rho, temp;
+  //    realtype activity[NEQ], molecular_weight[NEQ];
+  //    double rwrk;
+  //    int iwrk;
+
+  //    int offset = tid * (NEQ + 1); 
+
+  //    /* MW CGS */
+  //    ckwt_(&iwrk, &rwrk, molecular_weight);
+  //    /* rho CGS */ 
+  //    rho = 0.0;
+  //    for (int i = 0; i < NEQ; i++){
+  //        rho = rho + udata[offset + i];
+  //    }
+  //    /* Cons CGS */ 
+  //    for (int i = 0; i < NEQ; i++){
+  //        activity[i] = udata[offset + i]/(molecular_weight[i]);
+  //    }
+  //    /* temp */
+  //    temp = udata[offset + NEQ];
+  //    if (iE_Creact == 1) {
+  //        consP = 0;
+  //        ajacobian_diag_(J, activity, temp, consP);
+  //    } else {
+  //        consP = 1;
+  //        ajacobian_diag_(J, activity, temp, consP);
+  //    }
+  //    
+  //    for (int i = 0; i < NEQ; i++){
+  //        zdata[offset + i] = rdata[offset + i]/(1-gamma*J[i]);
+  //    }
+  //}
+
+  return(0);
+}
+ 
 
  /* Free and destroy memory */
 void extern_cFree(){
@@ -406,7 +534,6 @@ void extern_cFree(){
 	if (iDense_Creact == 1) {
 	    SUNMatDestroy(A);
 	}
-	//Free(rYsrc);
 }
 
 /* Get and print some final statistics */
