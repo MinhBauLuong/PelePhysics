@@ -15,10 +15,10 @@ cvode_itmeth = 2
 cvode_iJac = 0
 
 # 1=full e, 2=full h
-cvode_iE = 1
+cvode_iE = 2
 
 # choose sparse or dense
-cvode_iDense = 99
+cvode_iDense = 1
 
 # 1=cvode
 ivode = 1

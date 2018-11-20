@@ -1,2 +1,8 @@
-INCLUDE_LOCATIONS += /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/srcdir/include/
-INCLUDE_LOCATIONS += /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/builddir/include/
+ifeq ($(USE_CUDA_CVODE), TRUE)
+ifeq ($(USE_CVODE_CUSOLVER), TRUE)
+    ##DEFINES += -DCUDA_CVODE
+    ##DEFINES += -DCVODE_CUSOLVER
+    LIBRARIES += -lsundials_cusolver_sparse -lcusolver -lcusparse -lcublas
+    ##LIBRARIES += -rpath=$(CUDA_DIR)/lib64
+endif 
+endif

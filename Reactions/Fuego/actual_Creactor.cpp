@@ -55,7 +55,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	 * Backward Differentiation Formula and the use of a Newton iteration */
 	if ((*cvode_meth == 2) && (*cvode_itmeth == 2))
 	{
-	    cvode_mem = CVodeCreate(CV_BDF, CV_NEWTON);
+	    cvode_mem = CVodeCreate(CV_BDF);
 	    if (check_flag((void *)cvode_mem, "CVodeCreate", 0)) return(1);
 	} else {
 	    amrex::Abort("\n--> Weird inputs to CVodeCreate. Viable options are CV_BDF (=2), CV_NEWTON (=2)\n");

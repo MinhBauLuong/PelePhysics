@@ -3,6 +3,7 @@
 #include <cassert>
 #include <chrono>
 #include <ctime>
+#include <assert.h>
 
 #include <cvode/cvode.h>               /* prototypes for CVODE fcts., consts.  */
 #include <nvector/nvector_serial.h>    /* access to serial N_Vector            */
@@ -16,11 +17,30 @@
 
 #include <nvector/nvector_cuda.h>
 
+#include <cusolver/cvode_cusolver_spqr.h>
+
 #include <AMReX_Print.H>
 
 /**********************************/
+typedef struct CVodeUserData {
+    int ncells_d[1]; 
+    int neqs_per_cell[1];
+    int flagP;
+    double fwd_A[289], fwd_beta[289], fwd_Ea[289];
+    double low_A[289], low_beta[289], low_Ea[289];
+    double rev_A[289], rev_beta[289], rev_Ea[289];
+    double troe_a[289],troe_Ts[289], troe_Tss[289], troe_Tsss[289];
+    double sri_a[289], sri_b[289], sri_c[289], sri_d[289], sri_e[289];
+    double activation_units[289], prefactor_units[289], phase_units[289]; 
+    int is_PD[289], troe_len[289], sri_len[289], nTB[289], *TBid[289];
+    double *TB[289];
+}* UserData;
+
 /* Functions Called by the Solver */
 static int cF_RHS(realtype t, N_Vector y_in, N_Vector ydot, void *user_data);
+
+int fun_csr_jac(realtype t, N_Vector y_in, N_Vector fy_in,  
+                CV_cuSolver_csr_sys csr_sys, void* user_data);
 
 
 /**********************************/
@@ -37,6 +57,10 @@ void extern_cFree();
 
 /**********************************/
 /* Additional useful functions */
+static void initialize_chemistry_device(UserData user_data);
+
+//static void finalize_chemistry_device(void *user_data);
+
 static int check_flag(void *flagvalue, const char *funcname, int opt);
 
 static void PrintFinalStats(void *cvode_mem);
@@ -64,9 +88,17 @@ extern "C" {
 /* Device crap               */
 
 /* Main Kernel fct called in solver RHS */
-__global__ void fKernelSpec(realtype *dt, int *ncells_d, int *nspec, 
+__global__ void fKernelSpec(realtype *dt, void *user_data, 
 		            realtype *yvec_d, realtype *ydot_d,  
-		            double *rhoX_init, double *rhoXsrc_ext, double *rYs, int *flagDoP);
+		            double *rhoX_init, double *rhoXsrc_ext, double *rYs);
+
+
+__global__ void fKernelJacCSR(realtype t, void *user_data,
+                                          realtype *yvec_d, realtype *ydot_d,
+                                          realtype* csr_jac, 
+                                          const int size, const int nnz, 
+                                          const int nbatched);
+
 
 /* FROM FUEGO */
 /*save inv molecular weights into array */
@@ -100,12 +132,15 @@ __device__ void ckhbms_d(double * T, double * y_wk, double * hbms);
 /*get mean internal energy in mass units */
 __device__ void ckubms_d(double * T, double * y_wk, double * ubms);
 /*compute the production rate for each species */
-__device__ void ckwc_d(double * T, double * C, double * wdot);
+__device__ void ckwc_d(double * T, double * C, double * wdot, void *user_data);
 /*compute the production rate for each species */
-__device__ void productionRate_d(double * wdot, double * sc, double T);
-__device__ void comp_k_f_d(double * tc, double invT, double * k_f, double * Corr, double * sc);
+__device__ void productionRate_d(double * wdot, double * sc, double T, void *user_data);
+/*compute the reaction Jacobian */
+__device__ void dwdot_d(double * J, double * sc, double * Tp, int * consP, void *user_data);
+__device__ void ajacobian_d(double * J, double * sc, double T, int consP, void *user_data);
+__device__ void comp_k_f_d(double * tc, double invT, double * k_f, double * Corr, double * sc, void *user_data);
 __device__ void comp_Kc_d(double * tc, double invT, double * Kc);
-__device__ void comp_qfqr_d(double *  qf, double * qr, double * sc, double * tc, double invT);
+__device__ void comp_qfqr_d(double *  qf, double * qr, double * sc, double * tc, double invT, void *user_data);
 /*compute the g/(RT) at the given temperature */
 /*tc contains precomputed powers of T, tc[0] = log(T) */
 __device__ void gibbs_d(double * species, double *  tc);
@@ -115,6 +150,9 @@ __device__ void cv_R_d(double * species, double *  tc);
 /*compute Cp/R at the given temperature */
 /*tc contains precomputed powers of T, tc[0] = log(T) */
 __device__ void cp_R_d(double * species, double *  tc);
+/*compute d(Cp/R)/dT and d(Cv/R)/dT at the given temperature */
+/*tc contains precomputed powers of T, tc[0] = log(T) */
+__device__ void dcvpRdT_d(double * species, double * tc);
 /*compute the e/(RT) at the given temperature */
 /*tc contains precomputed powers of T, tc[0] = log(T) */
 __device__ void speciesInternalEnergy_d(double * species, double *  tc);

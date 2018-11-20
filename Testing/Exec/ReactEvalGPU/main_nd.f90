@@ -140,8 +140,8 @@ contains
              !rhoY src ext
              rhoYs(i,j,k,1:nspec) = 0.0 
              ! all in e
-             rhoE(i,j,k,1) = eos_state % e * eos_state % rho
-             !rhoE(i,j,k,1) = eos_state % h * eos_state % rho
+             !rhoE(i,j,k,1) = eos_state % e * eos_state % rho
+             rhoE(i,j,k,1) = eos_state % h * eos_state % rho
              !rhoE src ext
              rhoEs(i,j,k,1) = 0.0
              plo                 = pressure
