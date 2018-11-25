@@ -1108,8 +1108,8 @@ class CPickler(CMill):
             'void CKEQYR'+sym+'(double * restrict rho, double * restrict T, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict eqcon);',
             'void CKEQXR'+sym+'(double * restrict rho, double * restrict T, double * restrict x, int * iwrk, double * restrict rwrk, double * restrict eqcon);',
             'void DWDOT(double * restrict J, double * restrict sc, double * restrict T, int * consP);',
-            'void SPARSITY_INFO(int * nJdata);',
-            'void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs);',
+            'void SPARSITY_INFO(int * nJdata, int * consP);',
+            'void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP);',
             'void aJacobian(double * restrict J, double * restrict sc, double T, int consP);',
             'void dcvpRdT(double * restrict species, double * restrict tc);',
             'void GET_T_GIVEN_EY(double * restrict e, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict t, int *ierr);',
@@ -6746,7 +6746,7 @@ class CPickler(CMill):
 
         self._write()
         self._write(self.line('compute the sparsity pattern Jacobian'))
-        self._write('void SPARSITY_INFO( int * nJdata, int * consP)')
+        self._write('void SPARSITY_INFO( int * nJdata, int * consP, int * consP)')
         self._write('{')
         self._indent()
 
@@ -6785,7 +6785,7 @@ class CPickler(CMill):
         self._write()
         self._write()
 
-        self._write('void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP)')
+        self._write('void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP, int * consP)')
         self._write('{')
         self._indent()
 

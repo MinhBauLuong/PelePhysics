@@ -1,0 +1,32 @@
+probin_file = probin
+n_cell = 1
+max_grid_size = 1
+
+dt = 1.e-07
+ndt = 500
+
+# 1 = Adams (non-stiff); 2 = BDF (stiff)
+cvode_meth = 2
+
+# 1 = functional iteration; 2 = Newton iteration
+cvode_itmeth = 2
+
+# Select CVODE Jacobian eval.
+cvode_iJac = 1
+
+# 1=full e, 2=full h
+cvode_iE = 1
+
+# choose dense direct (1) / Iterative (99) or sparse direct (else)
+cvode_iDense = 0
+
+# 1=cvode
+ivode = 1
+
+write_plotfile = 1
+
+do_tiling = 0
+
+amr.plot_file       = plt
+#txtfile_in          = out_dodWand_P1_T400_R0p8.txt
+#txtfile_in          = 1D_y_7530_DOD

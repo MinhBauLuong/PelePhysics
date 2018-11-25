@@ -388,8 +388,8 @@ void DWDOT(double * restrict J, double * restrict sc, double * restrict Tp, doub
 void DWDOT(double * restrict J, double * restrict sc, double * restrict T, int * consP);
 #endif
 void aJacobian(double * restrict J, double * restrict sc, double T, int consP);
-void SPARSITY_INFO(int * nJdata);
-void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs);
+void SPARSITY_INFO(int * nJdata, int * consP);
+void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP);
 void dcvpRdT(double * restrict species, double * restrict tc);
 void GET_T_GIVEN_EY(double * restrict e, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict t, int *ierr);
 void GET_T_GIVEN_HY(double * restrict h, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict t, int *ierr);
@@ -4016,7 +4016,7 @@ void SPARSITY_INFO( int * nJdata, int * consP)
     }
 
     nJdata[0] = nJdata_tmp;
-    //printf("\nAu total %d ",nJdata[0]);
+    printf("\nconsP %d ",*consP);
 
     return;
 }

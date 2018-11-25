@@ -94,7 +94,7 @@ contains
     real(c_double), allocatable   :: atol(:)
     real(c_double)                :: rtol
     type(c_ptr)                   :: atol_cptr
-    integer                       ::  verbose
+    integer                       ::  verbose, flagP
     integer                       :: nJdata(1)
 
     !CALL t_total%init("Total")
@@ -113,11 +113,14 @@ contains
     iE = iE_in
     if (iE == 1) then
         print *," ->with internal energy (UV cst)"
+        flagP = 0
     else if (iE == 5) then
         print *," ->with enthalpy (HP cst)"
+        flagP = 1
         call amrex_abort("CVODE: NOT IMPLEMENTED")
     else
         print *," ->with enthalpy (sort of HP cst)"
+        flagP = 1
     end if 
 
     verbose = 0
@@ -159,7 +162,7 @@ contains
         ierr = FCVIter(CVmem, neq, 0)
     else
         ! Get some sort of sparsity pattern to fill NNZ...
-        call SPARSITY_INFO(nJdata)
+        call SPARSITY_INFO(nJdata, flagP)
         print *,"--> SPARSE solver -- non zero entries ", nJdata(1), " represents ", nJdata(1)/float(neq * neq) *100.0, "% sparsity pattern"
         ! Tell CVODE to use a KLU linear solver.
         NNZ = nJdata(1)
@@ -168,7 +171,7 @@ contains
         allocate(Jdata(NNZ))
         allocate(rowVals(NNZ))
         allocate(colPtrs(neq+1))
-        call SPARSITY_PREPROC(rowVals,colPtrs)
+        call SPARSITY_PREPROC(rowVals,colPtrs, flagP)
         !print *, size(rowVals)
         !print *,"rowVals ", rowVals(:)
         !print *,"colPtrs(neq+1) ", colPtrs(neq+1)
