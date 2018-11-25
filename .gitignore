@@ -6,6 +6,9 @@ Backtrace.0
 *_save
 *_bu
 out_*
+OUT_*
+*_ERC
+*_ndod
 
 # AMReX build directories
 d/
@@ -34,8 +37,15 @@ chk*
 *.pyc
 extract.py
 script.py
+script_gpu.py
 
 # Folders
 ReactEvalCVODE/
 ToyPb_cvodeVSdvode/
 ReactEvalSUNDIALS3/
+serial_*/
+serialGPU_E_asPele/
+GPU_*/
+serialGPU_E_asPeleC/
+TEST/
+serial/
