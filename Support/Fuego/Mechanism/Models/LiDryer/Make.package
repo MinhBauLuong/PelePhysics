@@ -1,4 +1,6 @@
 cEXE_sources+=LiDryer.c
+cEXE_sources+=jacob.c
+cEXE_headers+=jacob.h
 
 VPATH_LOCATIONS +=  $(CHEM_DIR)/PMFs
 

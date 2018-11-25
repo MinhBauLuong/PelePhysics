@@ -7,8 +7,8 @@ DIM        = 2
 USE_MPI    = FALSE
 USE_OMP    = FALSE
 
-USE_CUDA           = TRUE
-USE_CVODE_CUSOLVER = TRUE
+USE_CUDA           = FALSE
+USE_CVODE_CUSOLVER = FALSE
 
 USE_SUNDIALS_3x4x=TRUE
 #CVODE_LIB_DIR ?= ${CVODE_LIB}
@@ -28,7 +28,8 @@ FUEGO_GAS  = TRUE
 ifeq ($(FUEGO_GAS), TRUE)
   Eos_dir         = Fuego
   #Chemistry_Model = ERC_nheptane
-  Chemistry_Model = dodecane_wang
+  Chemistry_Model = LiDryer
+  #Chemistry_Model = dodecane_wang
   Reactions_dir   = Fuego
   Transport_dir   = Simple
 else

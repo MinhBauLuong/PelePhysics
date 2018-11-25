@@ -684,6 +684,7 @@ class CPickler(CMill):
         self._productionRate(mechanism)
         self._vproductionRate(mechanism)
         self._DproductionRate(mechanism)
+        self._sparsity(mechanism)
         self._ajac(mechanism)
         self._dthermodT(mechanism)
         self._progressRate(mechanism)
@@ -798,6 +799,8 @@ class CPickler(CMill):
             '#define CKEQYR CKEQYR',
             '#define CKEQXR CKEQXR',
             '#define DWDOT DWDOT',
+            '#define SPARSITY_INFO SPARSITY_INFO',
+            '#define SPARSITY_PREPROC SPARSITY_PREPROC',
             '#define VCKHMS VCKHMS',
             '#define VCKPY VCKPY',
             '#define VCKWYR VCKWYR',
@@ -884,6 +887,8 @@ class CPickler(CMill):
             '#define CKEQYR ckeqyr',
             '#define CKEQXR ckeqxr',
             '#define DWDOT dwdot',
+            '#define SPARSITY_INFO sparsity_info',
+            '#define SPARSITY_PREPROC sparsity_preproc',
             '#define VCKHMS vckhms',
             '#define VCKPY vckpy',
             '#define VCKWYR vckwyr',
@@ -970,6 +975,8 @@ class CPickler(CMill):
             '#define CKEQYR ckeqyr_',
             '#define CKEQXR ckeqxr_',
             '#define DWDOT dwdot_',
+            '#define SPARSITY_INFO sparsity_info_',
+            '#define SPARSITY_PREPROC sparsity_preproc_',
             '#define VCKHMS vckhms_',
             '#define VCKPY vckpy_',
             '#define VCKWYR vckwyr_',
@@ -1101,6 +1108,8 @@ class CPickler(CMill):
             'void CKEQYR'+sym+'(double * restrict rho, double * restrict T, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict eqcon);',
             'void CKEQXR'+sym+'(double * restrict rho, double * restrict T, double * restrict x, int * iwrk, double * restrict rwrk, double * restrict eqcon);',
             'void DWDOT(double * restrict J, double * restrict sc, double * restrict T, int * consP);',
+            'void SPARSITY_INFO(int * nJdata);',
+            'void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs);',
             'void aJacobian(double * restrict J, double * restrict sc, double T, int consP);',
             'void dcvpRdT(double * restrict species, double * restrict tc);',
             'void GET_T_GIVEN_EY(double * restrict e, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict t, int *ierr);',
@@ -6729,6 +6738,96 @@ class CPickler(CMill):
         self._write('}')
 
         return
+
+    def _sparsity(self, mechanism):
+
+        species_list = [x.symbol for x in mechanism.species()]
+        nSpecies = len(species_list)
+
+        self._write()
+        self._write(self.line('compute the sparsity pattern Jacobian'))
+        self._write('void SPARSITY_INFO( int * nJdata, int * consP)')
+        self._write('{')
+        self._indent()
+
+        self._write('double c[%d];' % (nSpecies))
+        self._write('double J[%d];' % (nSpecies+1)**2)
+        self._write()
+        self._write('for (int k=0; k<%d; k++) {' % nSpecies)
+        self._indent()
+        self._write('c[k] = 1.0/ %f ;' % (nSpecies))
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('aJacobian(J, c, 1500.0, *consP);')
+
+        self._write()
+        self._write('int nJdata_tmp = 0;')
+        self._write('for (int k=0; k<%d; k++) {' % (nSpecies+1)**2)
+        self._indent()
+        self._write('if(J[k] != 0.0){')
+        self._indent()
+        self._write('nJdata_tmp = nJdata_tmp + 1;')
+        self._outdent()
+        self._write('}')
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('nJdata[0] = nJdata_tmp;')
+
+        self._write()
+        self._write('return;')
+        self._outdent()
+
+        self._write('}')
+        self._write()
+        self._write()
+
+        self._write('void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP)')
+        self._write('{')
+        self._indent()
+
+        self._write('double c[%d];' % (nSpecies))
+        self._write('double J[%d];' % (nSpecies+1)**2)
+        self._write()
+        self._write('for (int k=0; k<%d; k++) {' % nSpecies)
+        self._indent()
+        self._write('c[k] = 1.0/ %f ;' % (nSpecies))
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('aJacobian(J, c, 1500.0, *consP);')
+
+        self._write()
+        self._write('colPtrs[0] = 0;')
+        self._write('int nJdata_tmp = 0;')
+        self._write('for (int k=0; k<%d; k++) {' % (nSpecies+1))
+        self._indent()
+        self._write('for (int l=0; l<%d; l++) {' % (nSpecies+1))
+        self._indent()
+        self._write('if(J[%d*k + l] != 0.0) {' % (nSpecies+1))
+        self._indent()
+        self._write('rowVals[nJdata_tmp] = l+1; ')
+        self._write('nJdata_tmp = nJdata_tmp + 1; ')
+        self._outdent()
+        self._write('}')
+        self._outdent()
+        self._write('}')
+        self._write('colPtrs[k+1] = nJdata_tmp;')
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('return;')
+        self._outdent()
+
+        self._write('}')
+
+        return
+
 
 
     def _ajac(self, mechanism):

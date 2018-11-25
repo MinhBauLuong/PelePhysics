@@ -443,21 +443,20 @@ contains
 
     type (eos_t), intent(inout) :: state
 
-    call bl_error('EOS: eos_th is not supported in this EOS.')
-  !  integer :: lierr
+    integer :: lierr
 
-  !  call eos_wb(state)
+    call eos_wb(state)
 
-  !  call get_T_given_hY(state % h, state % massfrac, iwrk, rwrk, state % T, lierr)
-  !  if (lierr .ne. 0) then
-  !          print *, 'EOS: get_T_given_hY failed, T, h, Y = ', &
-  !                  state % T, state % h, state % massfrac
-  !  end if
-  !  state % T = max(state % T, smallT)
-  !  call ckhms(state % T, iwrk, rwrk, state % hi)
-  !  call ckrhoy(state % p, state % T, state % massfrac, iwrk, rwrk, state % rho)
+    call get_T_given_hY(state % h, state % massfrac, iwrk, rwrk, state % T, lierr)
+    if (lierr .ne. 0) then
+            print *, 'EOS: get_T_given_hY failed, T, h, Y = ', &
+                    state % T, state % h, state % massfrac
+    end if
+    state % T = max(state % T, smallT)
+    call ckhms(state % T, iwrk, rwrk, state % hi)
+    call ckrhoy(state % p, state % T, state % massfrac, iwrk, rwrk, state % rho)
 
-  !  call actual_eos_bottom_h(state)
+    call eos_bottom_h(state)
 
   end subroutine eos_ph
 
@@ -477,7 +476,20 @@ contains
 
     type (eos_t), intent(inout) :: state
 
-    call bl_error('EOS: eos_rh is not supported in this EOS.')
+    integer :: lierr
+
+    call eos_wb(state)
+
+    call get_T_given_hY(state % h, state % massfrac, iwrk, rwrk, state % T, lierr)
+    if (lierr .ne. 0) then
+            print *, 'EOS: get_T_given_hY failed, T, h, Y = ', &
+                    state % T, state % h, state % massfrac
+    end if
+    state % T = max(state % T, smallT)
+    call ckhms(state % T, iwrk, rwrk, state % hi)
+    call ckpy(state % rho, state % T, state % massfrac, iwrk, rwrk, state % p)
+
+    call eos_bottom_h(state)
 
   end subroutine eos_rh
 

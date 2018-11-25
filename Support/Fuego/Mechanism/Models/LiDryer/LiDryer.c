@@ -1,8 +1,10 @@
-
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#ifdef USE_PYJAC 
+#include <jacob.h>
+#endif
 
 #if defined(BL_FORT_USE_UPPERCASE)
 #define CKINDX CKINDX
@@ -82,6 +84,8 @@
 #define CKEQYR CKEQYR
 #define CKEQXR CKEQXR
 #define DWDOT DWDOT
+#define SPARSITY_INFO SPARSITY_INFO
+#define SPARSITY_PREPROC SPARSITY_PREPROC
 #define VCKHMS VCKHMS
 #define VCKPY VCKPY
 #define VCKWYR VCKWYR
@@ -168,6 +172,8 @@
 #define CKEQYR ckeqyr
 #define CKEQXR ckeqxr
 #define DWDOT dwdot
+#define SPARSITY_INFO sparsity_info
+#define SPARSITY_PREPROC sparsity_preproc
 #define VCKHMS vckhms
 #define VCKPY vckpy
 #define VCKWYR vckwyr
@@ -254,6 +260,8 @@
 #define CKEQYR ckeqyr_
 #define CKEQXR ckeqxr_
 #define DWDOT dwdot_
+#define SPARSITY_INFO sparsity_info_
+#define SPARSITY_PREPROC sparsity_preproc_
 #define VCKHMS vckhms_
 #define VCKPY vckpy_
 #define VCKWYR vckwyr_
@@ -374,8 +382,14 @@ void CKEQYP(double * restrict P, double * restrict T, double * restrict y, int *
 void CKEQXP(double * restrict P, double * restrict T, double * restrict x, int * iwrk, double * restrict rwrk, double * restrict eqcon);
 void CKEQYR(double * restrict rho, double * restrict T, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict eqcon);
 void CKEQXR(double * restrict rho, double * restrict T, double * restrict x, int * iwrk, double * restrict rwrk, double * restrict eqcon);
+#ifdef USE_PYJAC
+void DWDOT(double * restrict J, double * restrict sc, double * restrict Tp, double * restrict Press, int * consP);
+#else
 void DWDOT(double * restrict J, double * restrict sc, double * restrict T, int * consP);
+#endif
 void aJacobian(double * restrict J, double * restrict sc, double T, int consP);
+void SPARSITY_INFO(int * nJdata);
+void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs);
 void dcvpRdT(double * restrict species, double * restrict tc);
 void GET_T_GIVEN_EY(double * restrict e, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict t, int *ierr);
 void GET_T_GIVEN_HY(double * restrict h, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict t, int *ierr);
@@ -3904,6 +3918,57 @@ void vcomp_wdot(int npt, double * restrict wdot, double * restrict mixture, doub
     }
 }
 
+#ifdef USE_PYJAC
+/*compute the reaction Jacobian */
+void DWDOT(double * restrict J, double * restrict sc, double * restrict Tp, double * restrict Press, int * consP)
+{
+    double c[9];
+    double y[9];
+    int *iwrk;
+    double *rwrk;
+    double J_reorg[100];
+
+    CKCTY(sc, iwrk, rwrk, y);
+    for (int k=0; k<9; k++) {
+        c[k] = 1.e6 * sc[k];
+    }
+    *Press = *Press / 10.0;
+
+    //aJacobian(J, c, *Tp, *consP);
+    for (int i=0; i<100; i++) {
+        J[i] = 0.0;
+	J_reorg[i] = 0.0;
+    }
+    
+    eval_jacob(*Tp, *Press, c, y, J);
+
+    /* Reorganization */
+    for (int k=0; k<10; k++){
+	J_reorg[k*10 + 9] = J[k*10 + 0];
+        for (int i=0; i<9; i++){
+            J_reorg[k*10 + i] = J[k*10 + (i + 1)];
+        }
+    }
+    for (int k=0; k<10; k++){
+        J[9*10 + k] = J_reorg[k];
+    }
+    for (int k=0; k<90; k++){
+        J[k] = J_reorg[k + 10];
+    }
+
+    /* dwdot[k]/dT */
+    for (int k=0; k<9; k++) {
+        J[90+k] *= 1.e-3;
+    }
+
+    /* dTdot/d[X] */
+    for (int k=0; k<9; k++) {
+        J[k*10+9] *= 1.e3;
+    }
+
+    return;
+}
+#else
 /*compute the reaction Jacobian */
 void DWDOT(double * restrict J, double * restrict sc, double * restrict Tp, int * consP)
 {
@@ -3923,6 +3988,62 @@ void DWDOT(double * restrict J, double * restrict sc, double * restrict Tp, int 
     /* dTdot/d[X] */
     for (int k=0; k<9; k++) {
         J[k*10+9] *= 1.e6;
+    }
+
+    return;
+}
+#endif
+
+/*compute the sparsity pattern Jacobian */
+void SPARSITY_INFO( int * nJdata, int * consP)
+{
+    double c[9];
+    double J[100];
+
+    for (int k=0; k<9; k++) {
+        c[k] = 1.0/ 9.000000 ;
+    }
+
+    aJacobian(J, c, 1500.0, *consP);
+
+    int nJdata_tmp = 0;
+    for (int k=0; k<100; k++) {
+	// Debug version
+        if(J[k] != 0.0){
+            nJdata_tmp = nJdata_tmp + 1;
+	    //printf("%d  ",k);
+        }
+    }
+
+    nJdata[0] = nJdata_tmp;
+    //printf("\nAu total %d ",nJdata[0]);
+
+    return;
+}
+
+/*compute the sparsity pattern Jacobian */
+void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP)
+{
+    double c[9];
+    double J[100];
+
+    for (int k=0; k<9; k++) {
+        c[k] = 1.0/ 9.000000 ;
+    }
+
+    aJacobian(J, c, 1500.0, *consP);
+
+    colPtrs[0] = 0;
+    int nJdata_tmp = 0;
+    for (int k=0; k<10; k++) {
+        for (int l=0; l<10; l++) {
+            // Debug version
+            if(J[10*k + l] != 0.0) {
+                rowVals[nJdata_tmp] = l+1; 
+                nJdata_tmp = nJdata_tmp + 1;
+            }
+        }
+        colPtrs[k+1] = nJdata_tmp;
     }
 
     return;
@@ -6856,15 +6977,15 @@ void egtransetWT(double* WT ) {
 #define egtransetEPS egtranseteps_
 #endif
 void egtransetEPS(double* EPS ) {
+    EPS[1] = 1.07400000E+02;
+    EPS[2] = 5.72400000E+02;
     EPS[3] = 1.45000000E+02;
     EPS[4] = 8.00000000E+01;
+    EPS[8] = 9.75300000E+01;
     EPS[5] = 8.00000000E+01;
     EPS[6] = 1.07400000E+02;
     EPS[7] = 1.07400000E+02;
     EPS[0] = 3.80000000E+01;
-    EPS[1] = 1.07400000E+02;
-    EPS[2] = 5.72400000E+02;
-    EPS[8] = 9.75300000E+01;
 };
 
 
@@ -6877,15 +6998,15 @@ void egtransetEPS(double* EPS ) {
 #define egtransetSIG egtransetsig_
 #endif
 void egtransetSIG(double* SIG ) {
+    SIG[1] = 3.45800000E+00;
+    SIG[2] = 2.60500000E+00;
     SIG[3] = 2.05000000E+00;
     SIG[4] = 2.75000000E+00;
+    SIG[8] = 3.62100000E+00;
     SIG[5] = 2.75000000E+00;
     SIG[6] = 3.45800000E+00;
     SIG[7] = 3.45800000E+00;
     SIG[0] = 2.92000000E+00;
-    SIG[1] = 3.45800000E+00;
-    SIG[2] = 2.60500000E+00;
-    SIG[8] = 3.62100000E+00;
 };
 
 
@@ -6898,15 +7019,15 @@ void egtransetSIG(double* SIG ) {
 #define egtransetDIP egtransetdip_
 #endif
 void egtransetDIP(double* DIP ) {
+    DIP[1] = 0.00000000E+00;
+    DIP[2] = 1.84400000E+00;
     DIP[3] = 0.00000000E+00;
     DIP[4] = 0.00000000E+00;
+    DIP[8] = 0.00000000E+00;
     DIP[5] = 0.00000000E+00;
     DIP[6] = 0.00000000E+00;
     DIP[7] = 0.00000000E+00;
     DIP[0] = 0.00000000E+00;
-    DIP[1] = 0.00000000E+00;
-    DIP[2] = 1.84400000E+00;
-    DIP[8] = 0.00000000E+00;
 };
 
 
@@ -6919,15 +7040,15 @@ void egtransetDIP(double* DIP ) {
 #define egtransetPOL egtransetpol_
 #endif
 void egtransetPOL(double* POL ) {
+    POL[1] = 1.60000000E+00;
+    POL[2] = 0.00000000E+00;
     POL[3] = 0.00000000E+00;
     POL[4] = 0.00000000E+00;
+    POL[8] = 1.76000000E+00;
     POL[5] = 0.00000000E+00;
     POL[6] = 0.00000000E+00;
     POL[7] = 0.00000000E+00;
     POL[0] = 7.90000000E-01;
-    POL[1] = 1.60000000E+00;
-    POL[2] = 0.00000000E+00;
-    POL[8] = 1.76000000E+00;
 };
 
 
@@ -6940,15 +7061,15 @@ void egtransetPOL(double* POL ) {
 #define egtransetZROT egtransetzrot_
 #endif
 void egtransetZROT(double* ZROT ) {
+    ZROT[1] = 3.80000000E+00;
+    ZROT[2] = 4.00000000E+00;
     ZROT[3] = 0.00000000E+00;
     ZROT[4] = 0.00000000E+00;
+    ZROT[8] = 4.00000000E+00;
     ZROT[5] = 0.00000000E+00;
     ZROT[6] = 1.00000000E+00;
     ZROT[7] = 3.80000000E+00;
     ZROT[0] = 2.80000000E+02;
-    ZROT[1] = 3.80000000E+00;
-    ZROT[2] = 4.00000000E+00;
-    ZROT[8] = 4.00000000E+00;
 };
 
 
@@ -6961,15 +7082,15 @@ void egtransetZROT(double* ZROT ) {
 #define egtransetNLIN egtransetnlin_
 #endif
 void egtransetNLIN(int* NLIN) {
+    NLIN[1] = 1;
+    NLIN[2] = 2;
     NLIN[3] = 0;
     NLIN[4] = 0;
+    NLIN[8] = 1;
     NLIN[5] = 1;
     NLIN[6] = 2;
     NLIN[7] = 2;
     NLIN[0] = 1;
-    NLIN[1] = 1;
-    NLIN[2] = 2;
-    NLIN[8] = 1;
 };
 
 
