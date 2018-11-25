@@ -1,6 +1,6 @@
 f90EXE_sources += actual_network.f90
 ifeq ($(USE_DVODE), TRUE)
-    f90EXE_sources += actual_reactor.f90
+    F90EXE_sources += actual_reactor.F90
     f90EXE_sources += mod_timers.f90
 else
     ifeq ($(USE_CUDA_CVODE), TRUE)

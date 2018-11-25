@@ -24,7 +24,11 @@ USE_CUDA_CVODE = FALSE
 
 USE_SDC_FORTRAN = FALSE
 
-USE_PYJAC = FALSE
+USE_PYJAC = TRUE
+ifeq ($(USE_PYJAC), TRUE)
+    #CPPFLAGS += -DUSE_PYJAC 
+    DEFINES  += -DUSE_PYJAC 
+endif
 
 CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/instdir/lib/ 
 

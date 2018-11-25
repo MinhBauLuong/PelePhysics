@@ -558,7 +558,7 @@ contains
     eos_state % massfrac(1:nspec) = react_state_in % rhoY(1:nspec) * rhoInv
     ! for cst HP
     !eos_state % p                 = react_state_in % p
-    !pressureInit                  = react_state_in % p
+    pressureInit                  = react_state_in % p
 
     if (iE == 1) then
         eos_state % e = react_state_in % e
@@ -874,9 +874,21 @@ contains
         call ckytcr(rho0, Temp, YT0, iwrk, rwrk, C)
         ! C in mol/cm3
         !CALL t_ckJac%start          
+        !print *, "The current local cditions are (T,P): ", Temp, pressureInit
+        !print *, "The current local cditions are (Y): ", YT0
+        !print *, "The current local cditions are (C): ", C
+#ifdef USE_PYJAC
+        !print *, " PYJAC ON"
+        call DWDOT(Jmat, YT0, C, Temp, pressureInit, consP)
+#else
+
+        !print *, " PYJAC OFF"
         call DWDOT(Jmat, C, Temp, consP)
+#endif
         !CALL t_ckJac%stop   
         ! J(specs, specs) in 1/s for specs, K is there for othres
+
+        !call amrex_abort("CA SUFFIT")
 
     
         do j=1,nspec
