@@ -89,7 +89,7 @@ contains
     !Local
     integer(c_long)               :: neq, i
     integer(c_int)                :: ierr ! CVODE return status
-    integer(c_long), parameter    :: mxsteps = 50000
+    integer(c_long), parameter    :: mxsteps = 100000
     real(c_double)                :: time
     real(c_double), allocatable   :: atol(:)
     real(c_double)                :: rtol
@@ -116,8 +116,8 @@ contains
         flagP = 0
     else if (iE == 5) then
         print *," ->with enthalpy (HP cst)"
-        flagP = 1
-        call amrex_abort("CVODE: NOT IMPLEMENTED")
+        flagP = 2
+        !call amrex_abort("CVODE: NOT IMPLEMENTED")
     else
         print *," ->with enthalpy (sort of HP cst)"
         flagP = 1
@@ -161,22 +161,26 @@ contains
         print *,"--> ITERATIVE solver "
         ierr = FCVIter(CVmem, neq, 0)
     else
-        ! Get some sort of sparsity pattern to fill NNZ...
-        call SPARSITY_INFO(nJdata, flagP)
-        print *,"--> SPARSE solver -- non zero entries ", nJdata(1), " represents ", nJdata(1)/float(neq * neq) *100.0, "% sparsity pattern"
-        ! Tell CVODE to use a KLU linear solver.
-        NNZ = nJdata(1)
-        ierr = FCVSparse(CVmem, neq, neq, NNZ, CSC_MAT)
-        ! Allocate and fill additional data
-        allocate(Jdata(NNZ))
-        allocate(rowVals(NNZ))
-        allocate(colPtrs(neq+1))
-        call SPARSITY_PREPROC(rowVals,colPtrs, flagP)
-        !print *, size(rowVals)
-        !print *,"rowVals ", rowVals(:)
-        !print *,"colPtrs(neq+1) ", colPtrs(neq+1)
-        ! iJac = 1
-        allocate(Jmat_KLU(neq,neq))
+        if (iE == 5) then
+            call amrex_abort("SPARSE solver not implemented for HP reactors")
+        else
+            ! Get some sort of sparsity pattern to fill NNZ...
+            call SPARSITY_INFO(nJdata, flagP)
+            print *,"--> SPARSE solver -- non zero entries ", nJdata(1), " represents ", nJdata(1)/float(neq * neq) *100.0, "% sparsity pattern"
+            ! Tell CVODE to use a KLU linear solver.
+            NNZ = nJdata(1)
+            ierr = FCVSparse(CVmem, neq, neq, NNZ, CSC_MAT)
+            ! Allocate and fill additional data
+            allocate(Jdata(NNZ))
+            allocate(rowVals(NNZ))
+            allocate(colPtrs(neq+1))
+            call SPARSITY_PREPROC(rowVals,colPtrs, flagP)
+            !print *, size(rowVals)
+            !print *,"rowVals ", rowVals(:)
+            !print *,"colPtrs(neq+1) ", colPtrs(neq+1)
+            ! iJac = 1
+            allocate(Jmat_KLU(neq,neq))
+        end if
     end if
 
     ! set Jacobian routine
@@ -186,18 +190,25 @@ contains
             if (iE == 1) then
                 ierr = FCVDlsSetJacFn(CVmem, c_funloc(f_jac_cvode))
                 if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVDlsSetDenseJacFn()")
+            else if (iE == 5) then
+                ierr = FCVDlsSetJacFn(CVmem, c_funloc(f_jac_cvode_HP_PyJac))
+                if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVDlsSetDenseJacFn()")
             else 
-                ierr = FCVDlsSetJacFn(CVmem, c_funloc(f_jac_cvode_HP))
+                ierr = FCVDlsSetJacFn(CVmem, c_funloc(f_jac_cvode_HP_Fuego))
                 if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVDlsSetDenseJacFn()")
             end if
         else if (iDense == 99) then
-            print *,"   -- no J"
+            print *,"   -- iterative solver: no J, not preconditioned"
             !ierr = FCVSpilsSetJacTimes(CVmem, NULL, NULL);
+	    !ierr = FCVSpilsSetPreconditioner(CVmem, Precond, PSolve);
         else 
             print *,"   -- always with Analytical J"
             if (iE == 1) then
                 ierr = FCVDlsSetJacFn(CVmem, c_funloc(f_jac_cvode_KLU))
                 if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVDlsSetDenseJacFn()")
+            !else if (iE == 5) then
+            !    ierr = FCVDlsSetJacFn(CVmem, c_funloc(f_jac_cvode_HP_KLU))
+            !    if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVDlsSetDenseJacFn()")
             else 
                 ierr = FCVDlsSetJacFn(CVmem, c_funloc(f_jac_cvode_HP_KLU))
                 if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVDlsSetDenseJacFn()")
@@ -532,6 +543,7 @@ contains
     use fnvector_serial_mod 
     use cvode_interface
     use eos_module
+    use chemistry_module, only : molecular_weight
     use, intrinsic :: iso_c_binding
 
     type(react_t),   intent(in   ) :: react_state_in
@@ -542,7 +554,8 @@ contains
     integer(c_long) :: neq
     integer(c_int)  :: i
     integer(c_int)  :: ierr ! CVODE return status
-    real(amrex_real)              :: rhoInv
+    real(amrex_real)   :: Y_div_W(nspec)
+    real(amrex_real)   :: rhoInv, press_recalc
 
     integer            :: verbose
     integer(c_long)    :: nfevals,nfevals_jac,nlinsetups,njevals,nstp
@@ -556,13 +569,16 @@ contains
     rhoInv                        = 1.d0 / eos_state % rho
     eos_state % T                 = react_state_in % T
     eos_state % massfrac(1:nspec) = react_state_in % rhoY(1:nspec) * rhoInv
-    ! for cst HP
-    !eos_state % p                 = react_state_in % p
-    pressureInit                  = react_state_in % p
 
     if (iE == 1) then
         eos_state % e = react_state_in % e
         call eos_re(eos_state)
+    else if (iE == 5) then
+        ! for cst HP
+        pressureInit  = react_state_in % p
+        eos_state % p = react_state_in % p
+        eos_state % h = react_state_in % h
+        call eos_ph(eos_state)
     else
         eos_state % h = react_state_in % h
         call eos_rh(eos_state)
@@ -574,12 +590,18 @@ contains
     neq       = nspec + 1
 
     yvec(neq) = eos_state % T
+    !print *, yvec(neq)
 
     if (iE == 1) then
         rhoe_init            = eos_state % e  *  eos_state % rho
         rhoedot_ext          = react_state_in % rhoedot_ext
         rhoydot_ext(1:nspec) = react_state_in % rhoydot_ext(1:nspec)
         yvec(1:nspec)        = react_state_in % rhoY(1:nspec)
+    else if (iE == 5) then
+        h_init            = eos_state % h  
+        hdot_ext          = react_state_in % rhohdot_ext / eos_state % rho
+        ydot_ext(1:nspec) = react_state_in % rhoydot_ext(1:nspec) / eos_state % rho
+        yvec(1:nspec)     = react_state_in % rhoY(:) / eos_state % rho
     else
         rhoh_init            = eos_state % h  *  eos_state % rho
         rhohdot_ext          = react_state_in % rhohdot_ext
@@ -615,6 +637,16 @@ contains
         react_state_out % rho           = sum(yvec(1:nspec))
         react_state_out % rhoydot_ext(1:nspec) = rhoydot_ext(1:nspec)
         react_state_out % rhoedot_ext   = rhoedot_ext  
+    else if (iE == 5) then
+        eos_state % p                 = pressureInit  
+        eos_state % massfrac(1:nspec) = yvec(1:nspec)
+        eos_state % T                 = yvec(neq)
+        eos_state % h                 = (h_init  +  dt_react*hdot_ext)
+        call eos_ph(eos_state)
+        react_state_out % rhoY(:)     = yvec(1:nspec) * eos_state % rho
+        react_state_out % rho         = eos_state % rho 
+        react_state_out % rhohdot_ext = hdot_ext * eos_state % rho
+        react_state_out % rhoydot_ext(1:nspec) = ydot_ext(1:nspec) *  eos_state % rho
     else
         eos_state % rho = sum(yvec(1:nspec))
         rhoInv          = 1.d0 / eos_state % rho
@@ -636,9 +668,14 @@ contains
 
     actual_react_cvode % reactions_succesful = .true.
 
-    verbose = 0
+    Y_div_W(:)   = eos_state % massfrac(:) / molecular_weight(:)
+    press_recalc = eos_state % rho * eos_state % T * 8.31451e+07 * sum(Y_div_W(:))
+    write(*,*) "e,h,p,rho,p_recalc ? ", eos_state % e, eos_state % h, eos_state % p, react_state_out % rho, press_recalc
+
+    verbose = 2
     if (verbose .ge. 1) then
        write(6,*) '......cvode done:'
+       write(6,*) ' time, T reached : ', time_out, eos_state % T
        ierr = FCVodeGetLastStep(CVmem, hlast)
        write(6,*) ' last successful step size = ',hlast
        ierr = FCVodeGetCurrentStep(CVmem, hcur)
@@ -708,6 +745,13 @@ contains
         eos_state % e   = (rhoe_init + (time - time_init) * rhoedot_ext) * rhoInv
         call eos_re(eos_state)
         call eos_get_activity(eos_state)
+    else if (iE == 5) then
+        eos_state % p   = pressureInit  
+        eos_state % massfrac(1:nspec) = yvec_wk(1:nspec) 
+        eos_state % T   = yvec_wk(neq) ! guess
+        eos_state % h   = h_init + (time - time_init) * hdot_ext
+        call eos_ph(eos_state)
+        call eos_get_activity_h(eos_state)
     else
         eos_state % rho = sum(yvec_wk(1:nspec))
         rhoInv          = 1.d0 / eos_state % rho
@@ -725,12 +769,19 @@ contains
 
     if (iE == 1) then
         ! rhoY and T
-        fvec(neq) = rhoedot_ext
+        fvec(neq)    = rhoedot_ext
         do n=1,nspec
-           fvec(n) = cdot(n) * molecular_weight(n) + rhoydot_ext(n)
+           fvec(n)   = cdot(n) * molecular_weight(n) + rhoydot_ext(n)
            fvec(neq) = fvec(neq) - eos_state%ei(n)*fvec(n)
         end do
-        fvec(neq) = fvec(neq)/(eos_state%rho * eos_state%cv)
+        fvec(neq)    = fvec(neq)/(eos_state%rho * eos_state%cv)
+    else if (iE == 5) then
+        fvec(neq)    = hdot_ext
+        do n=1,nspec
+           fvec(n)   = cdot(n) * molecular_weight(n) / eos_state%rho + ydot_ext(n)
+           fvec(neq) = fvec(neq) - eos_state%hi(n)*fvec(n) 
+        end do
+        fvec(neq)    = fvec(neq)/eos_state%cp
     else
         ! Y and T: probably not entirely correct
         fvec(neq) = rhohdot_ext
@@ -772,7 +823,7 @@ contains
         integer            :: i, j
         integer(c_long)    :: neq
         real(amrex_real)   :: rho0, rhoinv, Temp 
-        real(amrex_real)   :: YT0(nspec), C(nspec)
+        real(amrex_real)   :: YT0(nspec), XT0(nspec), C(nspec)
         integer, parameter :: consP = 0
 
         !CALL t_AJac%start
@@ -790,47 +841,61 @@ contains
         Temp = yvec_wk(neq)
 
         call ckytcr(rho0, Temp, YT0, iwrk, rwrk, C)
+        !call ckpy(rho0, Temp, YT0,iwrk, rwrk, pressureInit)
+        !call CKYTX(YT0,iwrk, rwrk,XT0)
+        !! HACK
+        !Temp = +1.50000e+003
+        !pressureInit = 1.50000e+007
+        !XT0(1) = 0.25157231846376715       
+        !XT0(2) = 0.15723269582251270        
+        !XT0(3) = 1.0000000000000E-20       
+        !XT0(4) = 8.5804334618765564E-009
+        !XT0(5) = 6.0477517574651392E-015 
+        !XT0(6) = 1.0000000000000E-20
+        !XT0(7) = 8.5799625136239602E-009
+        !XT0(8) = 1.0000000000000E-20     
+        !XT0(9) = 0.59119496855331821 
+        !call CKRHOX(pressureInit, Temp, XT0, iwrk, rwrk, rho0)
+        !call CKXTCR(rho0, Temp, XT0, iwrk, rwrk, C)
+        !! HACK
         ! C in mol/cm3
         !CALL t_ckJac%start          
+        !print *, "The current local cditions are (T,P): ", Temp, pressureInit
+        !print *, "The current local cditions are (X): ", XT0
+        !print *, "The current local cditions are (C): ", C
         call DWDOT(Jmat, C, Temp, consP)
         !CALL t_ckJac%stop          
         ! J(specs, specs) in 1/s
 
-        !plot J
-        !!!write(*,*) "m = ["
-        !!!write(*,*) abs(Jmat(neq,neq)), abs(Jmat(1:neq-1,neq))
-        !!!do i=1,neq-1
-        !!!    write(*,*) abs(Jmat(neq,i)), abs(Jmat(1:neq-1,i))
-        !!!write(*,*) "]"
-        !!!end do
-
-        !write(34,*) abs(Jmat(neq,neq)), abs(Jmat(neq,1:neq-1))
-        !do i=1,neq-1
-        !    write(34,*) abs(Jmat(i,neq)), abs(Jmat(i,1:neq-1))
-        !end do
-        !stop
 
         do j=1,nspec
            do i=1,nspec
               Jmat(i,j) = Jmat(i,j) * molecular_weight(i) * inv_mwt(j)
            end do
            i=neq
-           Jmat(i,j) = Jmat(i,j) * inv_mwt(j) * rho0
+           Jmat(i,j) = Jmat(i,j) * inv_mwt(j) !* rho0
         end do
     
         j = neq
-        rhoinv = 1.d0/rho0    
+        !rhoinv = 1.d0/rho0    
         do i=1,nspec
-           Jmat(i,j) = Jmat(i,j) * molecular_weight(i) * rhoinv
+           Jmat(i,j) = Jmat(i,j) * molecular_weight(i) !* rhoinv
         enddo
+
+        ! Plot J
+        !write(*,*) abs(Jmat(neq,neq)), abs(Jmat(neq,1:neq-1))
+        !do i=1,neq-1
+        !    write(*,*) abs(Jmat(i,neq)), abs(Jmat(i,1:neq-1))
+        !end do
+        !stop
 
         !CALL t_AJac%stop
 
   end function f_jac_cvode
 
   !CVODE VERSION
-  integer(c_int) function f_jac_cvode_HP(tn, sunvec_y_in, sunvec_f_in, sunMat_J, &
-           user_data, tmp1, tmp2, tmp3) result(ierr) bind(C,name='f_jac_cvode_HP')
+  integer(c_int) function f_jac_cvode_HP_Fuego(tn, sunvec_y_in, sunvec_f_in, sunMat_J, &
+           user_data, tmp1, tmp2, tmp3) result(ierr) bind(C,name='f_jac_cvode_HP_Fuego')
 
         use, intrinsic :: iso_c_binding
         use amrex_error_module
@@ -872,42 +937,146 @@ contains
         Temp = yvec_wk(neq)
 
         call ckytcr(rho0, Temp, YT0, iwrk, rwrk, C)
+        !call ckpy(rho0, Temp, YT0,iwrk, rwrk, pressureInit)
         ! C in mol/cm3
         !CALL t_ckJac%start          
         !print *, "The current local cditions are (T,P): ", Temp, pressureInit
         !print *, "The current local cditions are (Y): ", YT0
         !print *, "The current local cditions are (C): ", C
-#ifdef USE_PYJAC
+!#ifdef USE_PYJAC
         !print *, " PYJAC ON"
-        call DWDOT(Jmat, YT0, C, Temp, pressureInit, consP)
-#else
+        !call DWDOT(Jmat, YT0, C, Temp, pressureInit, consP)
 
+        ! J(specs, specs) in 1/s for specs, K is there for othres
+        !i=neq
+        !do j=1,nspec
+        !   Jmat(i,j) = Jmat(i,j) * 1e-3 / rho0 ! For PyJac comparisons
+        !end do
+        !j = neq
+        !do i=1,nspec
+        !   Jmat(i,j) = Jmat(i,j) * 1e3 * rho0 ! For PyJac comparisons
+        !enddo
+
+        !plot J
+        !write(*,*) abs(Jmat(neq,neq)), abs(Jmat(neq,1:neq-1))
+        !do i=1,neq-1
+        !    write(*,*) abs(Jmat(i,neq)), abs(Jmat(i,1:neq-1))
+        !end do
+        !stop
+
+!#else
         !print *, " PYJAC OFF"
         call DWDOT(Jmat, C, Temp, consP)
-#endif
-        !CALL t_ckJac%stop   
+
         ! J(specs, specs) in 1/s for specs, K is there for othres
-
-        !call amrex_abort("CA SUFFIT")
-
-    
         do j=1,nspec
            do i=1,nspec
               Jmat(i,j) = Jmat(i,j) * molecular_weight(i) * inv_mwt(j)
            end do
            i=neq
-           Jmat(i,j) = Jmat(i,j) * inv_mwt(j) * rho0
+           Jmat(i,j) = Jmat(i,j) * inv_mwt(j) !* inv_mwt(j) * rho0 !* 1e3 For PyJac comparisons
         end do
     
         j = neq
-        rhoinv = 1.d0/rho0    
+        !rhoinv = 1.d0/rho0    
         do i=1,nspec
-           Jmat(i,j) = Jmat(i,j) * molecular_weight(i) * rhoinv
+           Jmat(i,j) = Jmat(i,j) * molecular_weight(i)  !* molecular_weight(i) * rhoinv !/ 1e3 For PyJac comparisons
         enddo
+
+        !plot J
+        !write(*,*) abs(Jmat(neq,neq)), abs(Jmat(neq,1:neq-1))
+        !do i=1,neq-1
+        !    write(*,*) abs(Jmat(i,neq)), abs(Jmat(i,1:neq-1))
+        !end do
+        !stop
+!#endif
+        !CALL t_ckJac%stop   
 
         !CALL t_AJac%stop
 
-  end function f_jac_cvode_HP
+  end function f_jac_cvode_HP_Fuego
+
+  integer(c_int) function f_jac_cvode_HP_PyJac(tn, sunvec_y_in, sunvec_f_in, sunMat_J, &
+           user_data, tmp1, tmp2, tmp3) result(ierr) bind(C,name='f_jac_cvode_HP_PyJac')
+
+        use, intrinsic :: iso_c_binding
+        use amrex_error_module
+        use chemistry_module, only : molecular_weight, inv_mwt
+        use fnvector_serial_mod
+        use fsunmat_dense_mod
+
+        implicit none
+        real(c_double),  value :: tn
+        type(c_ptr),     value :: sunvec_y_in
+        type(c_ptr),     value :: sunvec_f_in
+        type(c_ptr),     value :: sunmat_J
+        type(c_ptr),     value :: user_data
+        type(c_ptr),     value :: tmp1, tmp2, tmp3
+
+        ! pointers to data in SUNDAILS vector and matrix
+        real(c_double), pointer :: yvec_wk(:)
+        real(c_double), pointer :: Jmat(:,:)
+
+        ! local variables
+        integer            :: i, j
+        integer(c_long)    :: neq
+        real(amrex_real)   :: rho0, rhoinv, Temp 
+        real(amrex_real)   :: YT0(nspec), C(nspec)
+        integer, parameter :: consP = 1
+
+        !CALL t_AJac%start
+
+        neq = nspec + 1
+
+        ! get data array from SUNDIALS vector
+        call FN_VGetData_Serial(sunvec_y_in, yvec_wk)
+    
+        ! get data array from SUNDIALS matrix
+        call FSUNMatGetData_Dense(sunmat_J, Jmat)
+
+        YT0(:) = yvec_wk(1:nspec)
+        Temp = yvec_wk(neq)
+        ! tests
+        !print *, " PYJAC OFF"
+        !call ckrhoy(pressureInit, Temp, YT0, iwrk, rwrk, rho0)
+        !call ckytcr(rho0, Temp, YT0, iwrk, rwrk, C)
+        !call DWDOT(Jmat, C, Temp, consP)
+        !! J(specs, specs) in 1/s for specs, K is there for othres
+        !do j=1,nspec
+        !   do i=1,nspec
+        !      Jmat(i,j) = Jmat(i,j) * molecular_weight(i) * inv_mwt(j)
+        !   end do
+        !   i=neq
+        !   Jmat(i,j) = Jmat(i,j) * inv_mwt(j) * rho0 * 1e3 !For PyJac comparisons
+        !end do
+    
+        !j = neq
+        !rhoinv = 1.d0/rho0    
+        !do i=1,nspec
+        !   Jmat(i,j) = Jmat(i,j) * molecular_weight(i)  * rhoinv / 1e3 !For PyJac comparisons
+        !enddo
+        ! tests
+
+        ! C in mol/cm3
+        !CALL t_ckJac%start          
+        !print *, "The current local cditions are (T,P): ", Temp, pressureInit
+        !print *, "The current local cditions are (Y): ", YT0
+        !print *, "The current local cditions are (C): ", C
+        print *, " PYJAC ON"
+        call DWDOT_PYJAC(Jmat, YT0, Temp, pressureInit)
+
+        !!plot J
+        !write(*,*) abs(Jmat(neq,neq)), abs(Jmat(neq,1:neq-1))
+        !do i=1,neq-1
+        !    write(*,*) abs(Jmat(i,neq)), abs(Jmat(i,1:neq-1))
+        !end do
+        !stop
+
+        !CALL t_ckJac%stop   
+
+        !CALL t_AJac%stop
+
+  end function f_jac_cvode_HP_PyJac
 
   !CVODE VERSION
   integer(c_int) function f_jac_cvode_KLU(tn, sunvec_y_in, sunvec_f_in, sunmat_J, &
@@ -939,7 +1108,7 @@ contains
         ! local variables
         integer            :: i, j, nbVals
         integer(c_long)    :: neq
-        real(amrex_real)   :: rho0, rhoinv, Temp 
+        real(amrex_real)   :: rho0, Temp 
         real(amrex_real)   :: YT0(nspec), C(nspec)
         integer, parameter :: consP = 0
 
@@ -971,12 +1140,11 @@ contains
               Jmat_KLU(i,j) = Jmat_KLU(i,j) * molecular_weight(i) * inv_mwt(j)
            end do
            i=neq
-           Jmat_KLU(i,j) = Jmat_KLU(i,j) * inv_mwt(j) * rho0
+           Jmat_KLU(i,j) = Jmat_KLU(i,j) * inv_mwt(j)
         end do
         j = neq
-        rhoinv = 1.d0/rho0    
         do i=1,nspec
-           Jmat_KLU(i,j) = Jmat_KLU(i,j) * molecular_weight(i) * rhoinv
+           Jmat_KLU(i,j) = Jmat_KLU(i,j) * molecular_weight(i)
         enddo
 
         ! Fill sparse attributes
@@ -1004,6 +1172,14 @@ contains
                 !print *, "     -> seek data in Jmat_KLU in row ", rowVals(colPtrs(i-1)+j), Jmat_KLU(rowVals(colPtrs(i-1) + j),i-1)
             end do
         end do
+
+        !plot J
+        !write(*,*) "OK HERE"
+        !write(*,*) abs(Jmat_KLU(neq,neq)), abs(Jmat_KLU(neq,1:neq-1))
+        !do i=1,neq-1
+        !    write(*,*) abs(Jmat_KLU(i,neq)), abs(Jmat_KLU(i,1:neq-1))
+        !end do
+        !stop
 
         !CALL t_AJac%stop
 
@@ -1038,7 +1214,7 @@ contains
         ! local variables
         integer            :: i, j, nbVals
         integer(c_long)    :: neq
-        real(amrex_real)   :: rho0, rhoinv, Temp 
+        real(amrex_real)   :: rho0,  Temp 
         real(amrex_real)   :: YT0(nspec), C(nspec)
         integer, parameter :: consP = 1
 
@@ -1072,12 +1248,11 @@ contains
               Jmat_KLU(i,j) = Jmat_KLU(i,j) * molecular_weight(i) * inv_mwt(j)
            end do
            i=neq
-           Jmat_KLU(i,j) = Jmat_KLU(i,j) * inv_mwt(j) * rho0
+           Jmat_KLU(i,j) = Jmat_KLU(i,j) * inv_mwt(j) 
         end do
         j = neq
-        rhoinv = 1.d0/rho0    
         do i=1,nspec
-           Jmat_KLU(i,j) = Jmat_KLU(i,j) * molecular_weight(i) * rhoinv
+           Jmat_KLU(i,j) = Jmat_KLU(i,j) * molecular_weight(i) 
         enddo
 
         ! Fill sparse attributes
@@ -1094,6 +1269,72 @@ contains
         !CALL t_AJac%stop
 
   end function f_jac_cvode_HP_KLU
+
+
+  !integer(c_int) function Precond(tn, sunvec_y_in, sunvec_f_in, jOK, &
+  !         jcurPtr, gamma, user_data) result(ierr) bind(C,name='Precond')
+
+  !      use, intrinsic :: iso_c_binding
+  !      use amrex_error_module
+  !      use chemistry_module, only : molecular_weight, inv_mwt
+  !      use fnvector_serial_mod
+  !      use fsunmat_dense_mod
+
+  !      implicit none
+  !      real(c_double),  value :: tn
+  !      type(c_ptr),     value :: sunvec_y_in
+  !      type(c_ptr),     value :: sunvec_f_in
+  !      logical,         value :: jOK
+  !      type(c_ptr),     value :: jcurPtr
+  !      real(c_double),  value :: gamma
+  !      type(c_ptr),     value :: user_data
+
+  !      ! pointers to data in SUNDAILS vector and matrix
+  !      real(c_double), pointer :: yvec_wk(:)
+  !      real(c_double),  pointer :: f_data(:)
+  !      real(c_double), pointer :: Jmat(:,:)
+
+
+  !      ! local variables
+  !      integer            :: i, j
+  !      integer(c_long)    :: neq
+  !      real(amrex_real)   :: rho0, rhoinv, Temp 
+  !      real(amrex_real)   :: YT0(nspec), C(nspec)
+  !      integer, parameter :: consP = 1
+
+  !      !CALL t_AJac%start
+
+  !      neq = nspec + 1
+  !      Jmat(:,:) = 0.0d0
+
+  !      ! get data array from SUNDIALS vector
+  !      call FN_VGetData_Serial(sunvec_y_in, yvec_wk)
+  !  
+  !      ! Stuff to calculate Jacobian
+  !      rho0 = sum(yvec_wk(1:nspec))
+  !      YT0(:) = yvec_wk(1:nspec)/rho0
+  !      Temp = yvec_wk(neq)
+
+  !      ! C in mol/cm3
+  !      call ckytcr(rho0, Temp, YT0, iwrk, rwrk, C)
+  !      ! J(specs, specs) in 1/s
+  !      call DWDOT_PRECOND(Jmat, C, Temp, consP)
+
+  !      ! Renormalizations
+  !      do j=1,nspec
+  !         do i=1,nspec
+  !            Jmat_KLU(i,j) = Jmat_KLU(i,j) * molecular_weight(i) * inv_mwt(j)
+  !         end do
+  !         i=neq
+  !         Jmat_KLU(i,j) = Jmat_KLU(i,j) * inv_mwt(j)
+  !      end do
+  !      j = neq
+  !      rhoinv = 1.d0/rho0    
+  !      do i=1,nspec
+  !         Jmat_KLU(i,j) = Jmat_KLU(i,j) * molecular_weight(i)
+  !      enddo
+
+  !end function Precond
 
 
 !*** FINALIZE ROUTINES ***!

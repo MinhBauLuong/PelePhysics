@@ -43,7 +43,7 @@ contains
      integer, parameter :: max_iter = 1000, NiterMAX = 400
      double precision, parameter :: tol = 1.d-16
 
-     CALL t_bechem%start
+     !CALL t_bechem%start
 
      rho_inv = 1.d0/rho
    
@@ -144,7 +144,7 @@ contains
         stop
      endif
 
-     CALL t_bechem%stop
+     !CALL t_bechem%stop
 
    contains
 

@@ -18,6 +18,7 @@ using namespace amrex;
 #include <main_F.H>
 #include <PlotFileFromMF.H>
 
+/**********************************/
 int main (int argc, 
           char* argv[])
 {
@@ -32,13 +33,9 @@ int main (int argc,
     int cvode_meth,cvode_itmeth,cvode_iJac,cvode_iE,ivode;
     int write_plotfile;
     Real time, dt;
+    int ndt;
     bool do_tiling;
     std::string probin_file, pltfile;
-    std::string fabfile_out=""; 
-    std::string mfabfile_out=""; 
-    std::string fabfile_in=""; 
-    std::string mfabfile_in=""; 
-    std::string chkfile_in=""; 
     std::string txtfile_in=""; 
 
     // inputs parameters
@@ -57,7 +54,9 @@ int main (int argc,
       // inputs file
       pp.get("max_grid_size",max_grid_size);
 
-      // Total integration time
+      // Total nb of integration dt to take
+      pp.get("ndt",ndt);
+      // Time steps
       pp.get("dt",dt);
 
       pp.get("write_plotfile",write_plotfile);
@@ -66,20 +65,16 @@ int main (int argc,
       ParmParse ppa("amr");
       ppa.query("plot_file",pltfile); 
 
-      // crap to load data to initialize MF
-      pp.query("fabfile_out",fabfile_out);
-      pp.query("mfabfile_out",mfabfile_out);
-      pp.query("fabfile_in",fabfile_in);
-      pp.query("mfabfile_in",mfabfile_in);
-      pp.query("chkfile_in",chkfile_in);
       pp.query("txtfile_in",txtfile_in);
+
     }
 
     // Print parameters on screen
     amrex::Print() << "Problem domain size: nx = ny = nz = " << n_cell << std::endl;
     amrex::Print() << "Max grid size: " << max_grid_size << std::endl;
-    amrex::Print() << "Total integration time: " << dt << std::endl;
-    amrex::Print() << "--> SDC integration !! ";
+    //amrex::Print() << "Total integration time: " << dt << std::endl;
+    amrex::Print() << "External time-stepping: " << dt << std::endl;
+    amrex::Print() << "Final time: " << ndt*dt << std::endl;
     amrex::Print() << std::endl;
 
 
@@ -95,7 +90,7 @@ int main (int argc,
     BoxArray ba;
     Geometry geom;
     IntVect dom_lo(IntVect(D_DECL(0,0,0)));
-    IntVect dom_hi(IntVect(D_DECL(n_cell-1, n_cell-1, n_cell-1)));
+    IntVect dom_hi(IntVect(D_DECL(n_cell-1, 0, 0)));
     Box domain(dom_lo, dom_hi);
 
     // Initialize the boxarray "ba" from the single box "bx"
@@ -123,11 +118,12 @@ int main (int argc,
     geom.define(domain,&real_box,CoordSys::cartesian,is_periodic);
 
     // This is a bit useless: dx is cst
-    std::vector<Real> plo(3,0), phi(3,0), dx(3,1);
-    for (int i=0; i<BL_SPACEDIM; ++i) {
-	    phi[i] = domain.length(i); 
-	    dx[i] = (phi[i] - plo[i])/domain.length(i); 
-      }
+    //std::vector<Real> plo(3,0), phi(3,0), dx(3,1);
+    Real plo ;
+    //for (int i=0; i<BL_SPACEDIM; ++i) {
+    //        phi[i] = domain.length(i); 
+    //        dx[i] = (phi[i] - plo[i])/domain.length(i); 
+    //  }
 
     // Ncomp = number of species to integrate
     int Ncomp;
@@ -184,22 +180,19 @@ int main (int argc,
          {
               amrex::Print() << "INFO: "<< count <<" FabArray in MF ... "<< std::endl;
          }
-    }
-    else {
-    
+    }else {
+
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
-        int count = 0; 
+        //int count = 1; 
         for ( MFIter mfi(mf, do_tiling); mfi.isValid(); ++mfi )
         {
-          amrex::Print() << "... working on mf number " << count << std::endl;
+          //amrex::Print() << "... working on mf number " << count << std::endl;
           const Box& box = mfi.tilebox();
 
           initialize_data_byhand(ARLIM_3D(box.loVect()), ARLIM_3D(box.hiVect()),
-            		BL_TO_FORTRAN_N_3D(mf[mfi],0),
-            		&(dx[0]), &(plo[0]), &(phi[0]));
-          count = count + 1;
+            		BL_TO_FORTRAN_N_3D(mf[mfi],0));
         }
 
         rY_source_ext.setVal(0,0,Ncomp+1,0);
@@ -231,7 +224,7 @@ int main (int argc,
           	    BL_TO_FORTRAN_N_3D(rY_source_ext[mfi],0),
           	    BL_TO_FORTRAN_N_3D(mask[mfi],0),
           	    BL_TO_FORTRAN_N_3D(cost[mfi],0),
-          	    &time, &dt);
+          	    &time, &ndt, &dt);
 
         count = count+1;
     }

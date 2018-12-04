@@ -37,14 +37,14 @@ contains
       integer              :: i
       !PetscErrorCode       :: ierr
 
-      CALL t_total%init("Total")
-      CALL t_init%init("Initialization")
-      CALL t_bechem%init("Backward-Euler")
-      CALL t_ck%init("Chemkin calls")
-      CALL t_eos%init("EOS calls")
+      !CALL t_total%init("Total")
+      !CALL t_init%init("Initialization")
+      !CALL t_bechem%init("Backward-Euler")
+      !CALL t_ck%init("Chemkin calls")
+      !CALL t_eos%init("EOS calls")
 
-      CALL t_total%start
-      CALL t_init%start
+      !CALL t_total%start
+      !CALL t_init%start
 
       nLobato = nLobato_in
       nsdcite = nsdcite_in
@@ -65,7 +65,7 @@ contains
           call build(eos_state_kp1(i))
       end do
 
-      CALL t_init%stop
+      !CALL t_init%stop
 
   end subroutine actual_reactor_init_sdc
 
@@ -89,7 +89,7 @@ contains
       call compute_dt_intervals(dt_react)
 
 !     Setup the initial state of each iterations (tn)  
-      CALL t_eos%start          
+      !CALL t_eos%start          
       eos_state_k(1) % rho = sum(react_state_in % rhoY(:))  
       rhoInv               = 1.d0 / eos_state_k(1) % rho
       eos_state_k(1) % T   = react_state_in % T  
@@ -104,11 +104,11 @@ contains
 
 !     Compute wdot of initial state
       call eos_get_activity_h(eos_state_k(1))
-      CALL t_eos%stop         
+      !CALL t_eos%stop         
 
-      CALL t_ck%start          
+      !CALL t_ck%start          
       call ckwc(eos_state_k(1) % T, eos_state_k(1) % Acti, iwrk, rwrk, cdot_k(1,1:nspec))
-      CALL t_ck%stop         
+      !CALL t_ck%stop         
       cdot_k(1,1:nspec) = cdot_k(1,1:nspec)* molecular_weight(1:nspec) + rhoydot_ext(:)
       cdot_k(1,nspec+1) = rhohdot_ext
 
@@ -288,14 +288,14 @@ contains
       state_kp1_jp1%massfrac(1:nspec) = state_kp1_j % massfrac(1:nspec) + (dtLobato * (cdot_kp1(1:nspec) - cdot_k(1:nspec)) + I_k_lcl(1:nspec))/ rho_init 
       !state_kp1_jp1%h           = hguess
       state_kp1_jp1%h           = state_kp1_j % h + I_k_lcl(nspec+1)/rho_init 
-      CALL t_eos%start
+      !CALL t_eos%start
       call get_T_given_hY(hguess,Y,iwrk,rwrk,T_init,ierr)
-      CALL t_eos%stop
+      !CALL t_eos%stop
       state_kp1_jp1%T           = T_init
       state_kp1_jp1%p           = state_k_jp1 % p
-      CALL t_eos%start
+      !CALL t_eos%start
       call ckrhoy(state_kp1_jp1%p,T_init,state_kp1_jp1%massfrac(:),iwrk,rwrk,rho_init)
-      CALL t_eos%stop
+      !CALL t_eos%stop
       state_kp1_jp1%rho =  rho_init
 
   end subroutine sdc_advance_chem

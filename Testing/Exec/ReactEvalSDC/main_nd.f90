@@ -109,12 +109,13 @@ contains
     read(49,*) a
     read(49,*) a
     ! read useful lines
-    !y  x_velocity  y_velocity  density  rhoh  tracer  temp  RhoRT  divu  dsdt  FuncCount  Y(H2)  Y(H)  Y(O)  Y(O2)  Y(OH)  Y(H2O)  Y(HO2)  Y(CH2)  Y(CH2(S))  Y(CH3)  Y(CH4)  Y(CO)  Y(CO2)  Y(HCO)  Y(CH2O)  Y(CH3O)  Y(C2H4)  Y(C2H5)  Y(C2H6)  Y(N2)  Y(AR)  CH4_ConsumptionRate  YH2_ForcingTerm  YH_ForcingTerm  YO_ForcingTerm  YO2_ForcingTerm  YOH_ForcingTerm  YH2O_ForcingTerm  YHO2_ForcingTerm  YCH2_ForcingTerm  YCH2(S)_ForcingTerm  YCH3_ForcingTerm  YCH4_ForcingTerm  YCO_ForcingTerm  YCO2_ForcingTerm  YHCO_ForcingTerm  YCH2O_ForcingTerm  YCH3O_ForcingTerm  YC2H4_ForcingTerm  YC2H5_ForcingTerm  YC2H6_ForcingTerm  YN2_ForcingTerm  YAR_ForcingTerm  Temperature_ForcingTerm  HeatRelease
     DO i = 1, nlin
-      read(49,*) y,x_velocity,y_velocity,density,dum,dum,temp(i),dum,dum,dum,dum,Y_in(i,:),dum,Y_forcing_in(i,:)
-      !read(49,*) y,x_velocity,y_velocity,density,dum,dum,temp(i),dum,dum,dum,dum,Y_in(i,:),dum,dum,dum,dum,dum,dum,Y_forcing_in(i,:)
-      print *, sum(Y_in(i,:))
+      read(49,*) y, dum, y_velocity, density, dum, dum, temp(i), dum, dum, dum, dum, Y_in(i,:), dum, dum, dum, dum, dum, dum, Y_forcing_in(i,:)
+      !print *, sum(Y_in(i,:))
+      !print *, Y_forcing_in(i,nspec+1)*10.0
     END DO
+    ! Todo
+    pressure = 1013250.d0
 
     close (unit=49)
 
@@ -148,13 +149,11 @@ contains
 
     ! local variables
     integer          :: i, j, k
-    !real(amrex_real) :: pressure
-    type(eos_t) :: eos_state
+    type(eos_t)      :: eos_state
 
     call build(eos_state)
 
     ! CGS UNITS
-    pressure = 1013250.d0
 
     do k = lo(3),hi(3)
        do j = lo(2),hi(2)
@@ -163,7 +162,7 @@ contains
              eos_state % p          = pressure
              eos_state % T          = temp(i+1)
              eos_state % massfrac(:)     = Y_in(i+1,:)
-             eos_state % massfrac(nspec) = ONE - sum(Y_in(i+1,1:nspec-1))
+             !eos_state % massfrac(nspec) = ONE - sum(Y_in(i+1,1:nspec-1))
 
              call eos_tp(eos_state)
 
@@ -189,8 +188,7 @@ contains
 
   subroutine initialize_data_byhand( &
        lo,hi, &
-       rhoY,         rY_lo, rY_hi, &
-       dx, plo, phi) &
+       rhoY,         rY_lo, rY_hi) &
        bind(C, name="initialize_data_byhand")
 
     use amrex_constants_module, only: M_PI, HALF, ONE, TWO, ZERO
@@ -202,23 +200,20 @@ contains
 
     integer         , intent(in   ) ::     lo(3),    hi(3)
     integer         , intent(in   ) ::  rY_lo(3), rY_hi(3)
-    real(amrex_real), intent(in   ) ::     dx(3)
-    real(amrex_real), intent(in   ) ::     plo(3),  phi(3)
     real(amrex_real), intent(inout) ::  rhoY(rY_lo(1):rY_hi(1),rY_lo(2):rY_hi(2),rY_lo(3):rY_hi(3),nspec+2)
 
     ! local variables
-    integer            :: i, j, k, ii
-    real(amrex_real)   :: y
-    type(eos_t)        :: eos_state
+    integer           :: i, j, k, ii
+    type(eos_t)       :: eos_state
     real(amrex_real)   :: dum
     character(len=6)   :: a
 
-    CALL t_eos%start
+    !CALL t_eos%start
     call build(eos_state)
-    CALL t_eos%stop
+    !CALL t_eos%stop
 
-    CALL t_readData%init("Read Data")   
-    CALL t_readData%start
+    !CALL t_readData%init("Read Data")   
+    !CALL t_readData%start
 
     ! read in the file
     open (unit=49, file="datafromSC.dat", form='formatted', status='old')
@@ -229,12 +224,12 @@ contains
     read(49,*) pressure,temp(1),dum,Y_in(1,:)
     eos_state % molefrac(:) = Y_in(1,:)
     pressure = pressure*10.d0
-    print *, "data read from datafromSC.dat ", pressure,temp(1),eos_state % molefrac(:)
     print *, "sum mole frac ", sum(eos_state % molefrac(:))
     close (unit=49)
 
 
     call eos_xty(eos_state)
+
 
     do k = lo(3),hi(3)
        do j = lo(2),hi(2)
@@ -242,7 +237,7 @@ contains
 
              eos_state % p               = pressure
              eos_state % T               = temp(1) 
-             eos_state % massfrac(nspec) = ONE - sum(eos_state % massfrac(1:nspec-1))
+             !eos_state % massfrac(nspec) = ONE - sum(eos_state % massfrac(1:nspec-1))
 
              call eos_tp(eos_state)
 
@@ -259,7 +254,7 @@ contains
 
     call destroy(eos_state)
 
-    CALL t_readData%stop
+    !CALL t_readData%stop
 
   end subroutine initialize_data_byhand
 
@@ -270,12 +265,13 @@ contains
                          ysrc,ys_lo,ys_hi, &
                          mask,m_lo,m_hi, &
                          cost,c_lo,c_hi, &
-                         time,dt_react ) bind(C, name="react_state")
+                         time,ndt,dt_react) bind(C, name="react_state")
 
     use network           , only : nspec
     use react_type_module
     use reactor_module
     use react_type_module
+    use actual_sdc_module
     use, intrinsic :: iso_c_binding
 
     implicit none
@@ -292,6 +288,7 @@ contains
     integer, intent(inout)           :: mask(m_lo(1):m_hi(1),m_lo(2):m_hi(2),m_lo(3):m_hi(3))
     real(amrex_real), intent(inout)  :: cost(c_lo(1):c_hi(1),c_lo(2):c_hi(2),c_lo(3):c_hi(3))
     real(c_double), intent(in)       :: time, dt_react
+    integer         , intent(in   ) ::  ndt
 
     ! local variables
     integer          :: i, j, k, ii
@@ -317,33 +314,24 @@ contains
                 react_state_in %              T = mold(i,j,k,nspec+2)
                 react_state_in %        rhoY(:) = mold(i,j,k,1:nspec)
                 react_state_in %            rho = sum(react_state_in % rhoY(:))
+                react_state_in %              p = pressure
                 react_state_in % rhoYdot_ext(:) = ysrc(i,j,k,1:nspec)
+
                 react_state_in % i = i
                 react_state_in % j = j
                 react_state_in % k = k
-                react_state_in % p = pressure
 
-                if (dt_react < 0.0) then
-                        time_tmp = time
-                        dt_react_incr =  - dt_react / 3000.0
-                        !if (react_state_in % T > 1500.0) then
-                        !    istop = 1
-                            write(12,*) "#dt_react_incr ", dt_react_incr
-                            write(12,*) "#time, T, h, rho, Yks in cell "
-                        !end if
-                        do ii= 1, 3000
-                            dt_react_tmp   = ii* dt_react_incr
-                            stat           = react_sdc(react_state_in, react_state_in, dt_react_incr, time)
-                            time_tmp       = dt_react_tmp
-                            rho            = sum(react_state_in % rhoY(1:nspec))
-                            !if (istop.eq.1) then
-                                write(12,*) time_tmp, react_state_in % T, react_state_in % h, rho, react_state_in % rhoY(1:nspec)/rho
-                            !end if
-                        end do
-                else
-                        stat = react_sdc(react_state_in, react_state_in, dt_react, time)
-                end if
-                !cost(i,j,k) = stat % cost_value
+                time_tmp = time
+                dt_react_incr =  dt_react
+                write(12,*) "#SDC"
+                write(12,*) "#time, T, e, h, P, rho, Yks "
+                do ii= 1, ndt
+                        dt_react_tmp   = ii* dt_react_incr
+                        stat           = react_sdc(react_state_in, react_state_in, dt_react_incr, time)
+                        time_tmp       = dt_react_tmp
+                        rho            = sum(react_state_in % rhoY(1:nspec))
+                        write(12,*) time_tmp, react_state_in % T, react_state_in %e, react_state_in %h, react_state_in % p, react_state_in %rho, react_state_in % rhoY(1:nspec)/rho
+                end do
 
                 ! Export e whenever
                 mnew(i,j,k,nspec+1)             = react_state_in % e
@@ -351,8 +339,8 @@ contains
                 mnew(i,j,k,1:nspec)             = react_state_in % rhoY(1:nspec)
                 rho                             = sum(mnew(i,j,k,1:nspec))
                 mnew(i,j,k,1:nspec)             = mnew(i,j,k,1:nspec)/rho
-                write(*,*) "T in cell ", react_state_in % T
-                write(*,*) "Y in cell ", mnew(i,j,k,1:nspec)
+                !write(*,*) "T in cell ", react_state_in % T
+                !write(*,*) "Y in cell ", mnew(i,j,k,1:nspec)
                 !if (istop.eq.1) then
                 !        stop
                 !end if

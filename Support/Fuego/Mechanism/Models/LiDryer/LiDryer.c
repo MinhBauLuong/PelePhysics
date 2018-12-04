@@ -1,10 +1,9 @@
+
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#ifdef USE_PYJAC 
 #include <jacob.h>
-#endif
 
 #if defined(BL_FORT_USE_UPPERCASE)
 #define CKINDX CKINDX
@@ -84,6 +83,7 @@
 #define CKEQYR CKEQYR
 #define CKEQXR CKEQXR
 #define DWDOT DWDOT
+#define DWDOT_PYJAC DWDOT_PYJAC
 #define SPARSITY_INFO SPARSITY_INFO
 #define SPARSITY_PREPROC SPARSITY_PREPROC
 #define VCKHMS VCKHMS
@@ -172,6 +172,7 @@
 #define CKEQYR ckeqyr
 #define CKEQXR ckeqxr
 #define DWDOT dwdot
+#define DWDOT_PYJAC dwdot_pyjac
 #define SPARSITY_INFO sparsity_info
 #define SPARSITY_PREPROC sparsity_preproc
 #define VCKHMS vckhms
@@ -260,6 +261,7 @@
 #define CKEQYR ckeqyr_
 #define CKEQXR ckeqxr_
 #define DWDOT dwdot_
+#define DWDOT_PYJAC dwdot_pyjac_
 #define SPARSITY_INFO sparsity_info_
 #define SPARSITY_PREPROC sparsity_preproc_
 #define VCKHMS vckhms_
@@ -382,14 +384,11 @@ void CKEQYP(double * restrict P, double * restrict T, double * restrict y, int *
 void CKEQXP(double * restrict P, double * restrict T, double * restrict x, int * iwrk, double * restrict rwrk, double * restrict eqcon);
 void CKEQYR(double * restrict rho, double * restrict T, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict eqcon);
 void CKEQXR(double * restrict rho, double * restrict T, double * restrict x, int * iwrk, double * restrict rwrk, double * restrict eqcon);
-#ifdef USE_PYJAC
-void DWDOT(double * restrict J, double * restrict y, double * restrict sc, double * restrict Tp, double * restrict Press, int * consP);
-#else
 void DWDOT(double * restrict J, double * restrict sc, double * restrict T, int * consP);
-#endif
-void aJacobian(double * restrict J, double * restrict sc, double T, int consP);
+void DWDOT_PYJAC(double * restrict J, double * restrict y, double * restrict Tp, double * restrict Press);
 void SPARSITY_INFO(int * nJdata, int * consP);
 void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP);
+void aJacobian(double * restrict J, double * restrict sc, double T, int consP);
 void dcvpRdT(double * restrict species, double * restrict tc);
 void GET_T_GIVEN_EY(double * restrict e, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict t, int *ierr);
 void GET_T_GIVEN_HY(double * restrict h, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict t, int *ierr);
@@ -3918,69 +3917,52 @@ void vcomp_wdot(int npt, double * restrict wdot, double * restrict mixture, doub
     }
 }
 
-#ifdef USE_PYJAC
-/*compute the reaction Jacobian */
-void DWDOT(double * restrict J, double * restrict y, double * restrict sc, double * restrict Tp, double * restrict Press, int * consP)
+/*compute the reaction Jacobian using PyJac */
+void DWDOT_PYJAC(double * restrict J, double * restrict y, double * restrict Tp, double * restrict Press)
 {
-    double c[9];
-    double J_reorg[81];
-    double J_temp[81];
+    double y_pyjac[10];
+    double J_reorg[100];
 
-    /* MKS */
+    /* INPUT Y */
+    y_pyjac[0] = *Tp;
     for (int k=0; k<9; k++) {
-        c[k] = 1.e6 * sc[k];
+        y_pyjac[1+k] = y[k];
     }
+
     double Press_MKS = *Press / 10.0;
-    printf("P is %f %f \n", Press_MKS, *Press);
-    
-    for (int i=0; i<100; i++) {
-        J[i] = 0.0;
-	J_reorg[i] = 0.0;
+
+    for (int k=0; k<100; k++) {
+        J[k] = 0.0;
+        J_reorg[k] = 0.0;
     }
-    
-    eval_jacob(*Tp, Press_MKS, c, y, J_temp);
+
+    eval_jacob(0, Press_MKS, y_pyjac, J);
 
     /* Reorganization */
-    for (int k=0; k<9; k++){
-	J_reorg[k*9 + 8] = J_temp[k*9 + 0];
-        for (int i=0; i<8; i++){
-            J_reorg[k*9 + i] = J_temp[k*9 + (i + 1)];
+    for (int k=0; k<10; k++) {
+        J_reorg[k*10 + 9] = J[k*10 + 0];
+        for (int i=0; i<9; i++) {
+            J_reorg[k*10 + i] = J[k*10 + (i + 1)];
         }
     }
-    for (int k=0; k<9; k++){
-        J_temp[8*9 + k] = J_reorg[k];
+    for (int k=0; k<10; k++) {
+        J[9*10 + k] = J_reorg[k];
     }
-    for (int k=0; k<72; k++){
-        J_temp[k] = J_reorg[k + 9];
-    }
-
-    /* Temporary mess to fit N2 */
-    for (int k=0; k<8; k++){
-        J[90 + k] = J_temp[72 + k];
-        for (int j=0; j<8; j++){
-            J[k*10 + j] = J_temp[k*9 + j];
-	}
-	J[k*10 + 8] = 0.0;
-	J[k*10 + 9] = J_temp[k*9 + 8];
-    }
-    J[90 + 8] = 0.0;
-    J[90 + 9] = J_temp[72 + 8];
-
-    /* Go back to CGS */
-    /* dwdot[k]/dT */
-    for (int k=0; k<9; k++) {
-        J[90+k] *= 1.e-3;
-        printf("   -- dwdot[%d]/dT %4.12e \n", k, J[90+k]);
+    for (int k=0; k<90; k++) {
+        J[k] = J_reorg[k + 10];
     }
 
-    /* dTdot/d[X] */
-    for (int k=0; k<9; k++) {
-        J[k*10+9] *= 1.e3;
-    }
+    ///* Go back to CGS */
+    //for (int k=0; k<9; k++) {
+    //    /* dwdot[k]/dT */
+    //    J[9*10 + k] *= 1.e-3;
+    //    /* dTdot/d[X] */
+    //    J[k*10 + 9] *= 1.e3;
+    //}
 
     return;
 }
-#else
+
 /*compute the reaction Jacobian */
 void DWDOT(double * restrict J, double * restrict sc, double * restrict Tp, int * consP)
 {
@@ -3995,7 +3977,6 @@ void DWDOT(double * restrict J, double * restrict sc, double * restrict Tp, int 
     /* dwdot[k]/dT */
     for (int k=0; k<9; k++) {
         J[90+k] *= 1.e-6;
-        printf("   -- dwdot[%d]/dT %4.12e \n", k, J[90+k]);
     }
 
     /* dTdot/d[X] */
@@ -4005,7 +3986,6 @@ void DWDOT(double * restrict J, double * restrict sc, double * restrict Tp, int 
 
     return;
 }
-#endif
 
 /*compute the sparsity pattern Jacobian */
 void SPARSITY_INFO( int * nJdata, int * consP)
@@ -4021,18 +4001,16 @@ void SPARSITY_INFO( int * nJdata, int * consP)
 
     int nJdata_tmp = 0;
     for (int k=0; k<100; k++) {
-	// Debug version
         if(J[k] != 0.0){
             nJdata_tmp = nJdata_tmp + 1;
-	    //printf("%d  ",k);
         }
     }
 
     nJdata[0] = nJdata_tmp;
-    printf("\nconsP %d ",*consP);
 
     return;
 }
+
 
 /*compute the sparsity pattern Jacobian */
 void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP)
@@ -4050,10 +4028,9 @@ void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * cons
     int nJdata_tmp = 0;
     for (int k=0; k<10; k++) {
         for (int l=0; l<10; l++) {
-            // Debug version
             if(J[10*k + l] != 0.0) {
                 rowVals[nJdata_tmp] = l+1; 
-                nJdata_tmp = nJdata_tmp + 1;
+                nJdata_tmp = nJdata_tmp + 1; 
             }
         }
         colPtrs[k+1] = nJdata_tmp;
@@ -4117,7 +4094,8 @@ void aJacobian(double * restrict J, double * restrict sc, double T, int consP)
                 * exp(fwd_beta[0] * tc[0] - activation_units[0] * fwd_Ea[0] * invT);
     dlnkfdT = fwd_beta[0] * invT + activation_units[0] * fwd_Ea[0] * invT2;
     /* pressure-fall-off */
-    k_0 = low_A[0] * exp(low_beta[0] * tc[0] - activation_units[0] * low_Ea[0] * invT);
+    k_0 = prefactor_units[0] * low_A[0] 
+	        * exp(low_beta[0] * tc[0] - activation_units[0] * low_Ea[0] * invT);
     Pr = phase_units[0] * alpha / k_f * k_0;
     fPr = Pr / (1.0+Pr);
     dlnk0dT = low_beta[0] * invT + activation_units[0] * low_Ea[0] * invT2;
@@ -4223,7 +4201,8 @@ void aJacobian(double * restrict J, double * restrict sc, double T, int consP)
                 * exp(fwd_beta[1] * tc[0] - activation_units[1] * fwd_Ea[1] * invT);
     dlnkfdT = fwd_beta[1] * invT + activation_units[1] * fwd_Ea[1] * invT2;
     /* pressure-fall-off */
-    k_0 = low_A[1] * exp(low_beta[1] * tc[0] - activation_units[1] * low_Ea[1] * invT);
+    k_0 = prefactor_units[0] * low_A[1] 
+	        * exp(low_beta[1] * tc[0] - activation_units[1] * low_Ea[1] * invT);
     Pr = phase_units[1] * alpha / k_f * k_0;
     fPr = Pr / (1.0+Pr);
     dlnk0dT = low_beta[1] * invT + activation_units[1] * low_Ea[1] * invT2;
@@ -4346,15 +4325,15 @@ void aJacobian(double * restrict J, double * restrict sc, double T, int consP)
         J[33] += 2 * dqdci;           /* dwdot[H]/d[H] */
     }
     else {
-        dqdc[0] = TB[2][0] + k_f;
-        dqdc[1] = dcdc_fac;
-        dqdc[2] = TB[2][1];
-        dqdc[3] = dcdc_fac - k_r*2*sc[3];
-        dqdc[4] = dcdc_fac;
-        dqdc[5] = dcdc_fac;
-        dqdc[6] = dcdc_fac;
-        dqdc[7] = dcdc_fac;
-        dqdc[8] = dcdc_fac;
+        dqdc[0] = TB[2][0]*q_nocor + k_f;
+        dqdc[1] = q_nocor;
+        dqdc[2] = TB[2][1]*q_nocor;
+        dqdc[3] = q_nocor - k_r*2*sc[3];
+        dqdc[4] = q_nocor;
+        dqdc[5] = q_nocor;
+        dqdc[6] = q_nocor;
+        dqdc[7] = q_nocor;
+        dqdc[8] = q_nocor;
         for (int k=0; k<9; k++) {
             J[10*k+0] -= dqdc[k];
             J[10*k+3] += 2 * dqdc[k];
@@ -4407,15 +4386,15 @@ void aJacobian(double * restrict J, double * restrict sc, double T, int consP)
         J[44] += -2 * dqdci;          /* dwdot[O]/d[O] */
     }
     else {
-        dqdc[0] = TB[3][0];
-        dqdc[1] = dcdc_fac - k_r;
-        dqdc[2] = TB[3][1];
-        dqdc[3] = dcdc_fac;
-        dqdc[4] = dcdc_fac + k_f*2*sc[4];
-        dqdc[5] = dcdc_fac;
-        dqdc[6] = dcdc_fac;
-        dqdc[7] = dcdc_fac;
-        dqdc[8] = dcdc_fac;
+        dqdc[0] = TB[3][0]*q_nocor;
+        dqdc[1] = q_nocor - k_r;
+        dqdc[2] = TB[3][1]*q_nocor;
+        dqdc[3] = q_nocor;
+        dqdc[4] = q_nocor + k_f*2*sc[4];
+        dqdc[5] = q_nocor;
+        dqdc[6] = q_nocor;
+        dqdc[7] = q_nocor;
+        dqdc[8] = q_nocor;
         for (int k=0; k<9; k++) {
             J[10*k+1] += dqdc[k];
             J[10*k+4] += -2 * dqdc[k];
@@ -4478,15 +4457,15 @@ void aJacobian(double * restrict J, double * restrict sc, double T, int consP)
         J[55] += dqdci;               /* dwdot[OH]/d[OH] */
     }
     else {
-        dqdc[0] = TB[4][0];
-        dqdc[1] = dcdc_fac;
-        dqdc[2] = TB[4][1];
-        dqdc[3] = dcdc_fac + k_f*sc[4];
-        dqdc[4] = dcdc_fac + k_f*sc[3];
-        dqdc[5] = dcdc_fac - k_r;
-        dqdc[6] = dcdc_fac;
-        dqdc[7] = dcdc_fac;
-        dqdc[8] = dcdc_fac;
+        dqdc[0] = TB[4][0]*q_nocor;
+        dqdc[1] = q_nocor;
+        dqdc[2] = TB[4][1]*q_nocor;
+        dqdc[3] = q_nocor + k_f*sc[4];
+        dqdc[4] = q_nocor + k_f*sc[3];
+        dqdc[5] = q_nocor - k_r;
+        dqdc[6] = q_nocor;
+        dqdc[7] = q_nocor;
+        dqdc[8] = q_nocor;
         for (int k=0; k<9; k++) {
             J[10*k+3] -= dqdc[k];
             J[10*k+4] -= dqdc[k];
@@ -4546,15 +4525,15 @@ void aJacobian(double * restrict J, double * restrict sc, double T, int consP)
         J[55] -= dqdci;               /* dwdot[OH]/d[OH] */
     }
     else {
-        dqdc[0] = TB[5][0];
-        dqdc[1] = dcdc_fac;
-        dqdc[2] = TB[5][1] - k_r;
-        dqdc[3] = dcdc_fac + k_f*sc[5];
-        dqdc[4] = dcdc_fac;
-        dqdc[5] = dcdc_fac + k_f*sc[3];
-        dqdc[6] = dcdc_fac;
-        dqdc[7] = dcdc_fac;
-        dqdc[8] = dcdc_fac;
+        dqdc[0] = TB[5][0]*q_nocor;
+        dqdc[1] = q_nocor;
+        dqdc[2] = TB[5][1]*q_nocor - k_r;
+        dqdc[3] = q_nocor + k_f*sc[5];
+        dqdc[4] = q_nocor;
+        dqdc[5] = q_nocor + k_f*sc[3];
+        dqdc[6] = q_nocor;
+        dqdc[7] = q_nocor;
+        dqdc[8] = q_nocor;
         for (int k=0; k<9; k++) {
             J[10*k+2] += dqdc[k];
             J[10*k+3] -= dqdc[k];

@@ -2,39 +2,41 @@
 # If you set AMREX_HOME as an environment variable, this line will be ignored
 
 DEBUG      = FALSE
-
-DIM        = 2
-
-COMP       = gcc
-FCOMP	   = mpif90
-
 USE_MPI    = FALSE
 USE_OMP    = FALSE
 
-FUEGO_GAS  = TRUE
+USE_CUDA   = FALSE
 
-USE_CVODE = FALSE
-#USE_PETSC = TRUE
-USE_SUNDIALS3=TRUE
-USE_ARKODE=FALSE
-
+COMP       = gcc
+FCOMP	   = gfortran 
+#mpif90
+DIM        = 2
 PRECISION  = DOUBLE
 EBASE     = main
 
+FUEGO_GAS  = TRUE
+
+#USE_CVODE = FALSE
+#USE_SUNDIALS3=TRUE
+USE_SUNDIALS_3x4x=TRUE
+USE_DVODE=TRUE
+
+USE_CUDA_CVODE = FALSE
+
+USE_SDC_FORTRAN = TRUE
+ifeq ($(USE_SDC_FORTRAN), TRUE)
+    DEFINES  += -DUSE_SDC_F
+endif
+
+
+CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/instdir/lib/ 
+
+
 ifeq ($(FUEGO_GAS), TRUE)
   Eos_dir         = Fuego
-  #Chemistry_Model = chem-H
-  #Chemistry_Model = LiDryer
-  #Chemistry_Model = BurkeDryer_mod
-  #Chemistry_Model = BurkeDryer
-  #Chemistry_Model = air
-  #Chemistry_Model = grimech12
-  #Chemistry_Model = grimech30
-  #Chemistry_Model = grimech30-noArN
-  #Chemistry_Model = drm19
+  #Chemistry_Model = ERC_nheptane
+  Chemistry_Model = LiDryer
   #Chemistry_Model = dodecane_wang
-  Chemistry_Model = ERC_nheptane
-  #Chemistry_Model = LLNL_GasolineSurr_RedI
   Reactions_dir   = Fuego
   Transport_dir   = Simple
 else
