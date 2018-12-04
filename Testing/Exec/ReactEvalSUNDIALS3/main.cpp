@@ -253,11 +253,11 @@ int main (int argc,
 
 
     // Check initialisation
-    //if (write_plotfile)
-    //{
-    //  std::string outfile = Concatenate(pltfile,1); // Need a number other than zero for reg test to pass
-    //  PlotFileFromMF(mf,outfile);
-    //}
+    if (write_plotfile)
+    {
+      std::string outfile = Concatenate(pltfile,1); // Need a number other than zero for reg test to pass
+      PlotFileFromMF(mf,outfile);
+    }
 
 
 #ifdef _OPENMP

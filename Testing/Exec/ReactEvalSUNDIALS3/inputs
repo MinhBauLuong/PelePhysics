@@ -3,7 +3,7 @@ n_cell = 1
 max_grid_size = 1
 
 dt = 1.e-07
-ndt = 500
+ndt = 300
 
 # 1 = Adams (non-stiff); 2 = BDF (stiff)
 cvode_meth = 2

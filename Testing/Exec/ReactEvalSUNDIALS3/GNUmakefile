@@ -23,12 +23,15 @@ USE_DVODE=TRUE
 USE_CUDA_CVODE = FALSE
 
 USE_SDC_FORTRAN = FALSE
-
-USE_PYJAC = TRUE
-ifeq ($(USE_PYJAC), TRUE)
-    #CPPFLAGS += -DUSE_PYJAC 
-    DEFINES  += -DUSE_PYJAC 
+ifeq ($(USE_SDC_FORTRAN), TRUE)
+    DEFINES  += -DUSE_SDC_F
 endif
+
+#USE_PYJAC = FALSE
+#ifeq ($(USE_PYJAC), TRUE)
+#    #CPPFLAGS += -DUSE_PYJAC 
+#    DEFINES  += -DUSE_PYJAC 
+#endif
 
 CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/instdir/lib/ 
 
@@ -36,8 +39,8 @@ CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/ins
 ifeq ($(FUEGO_GAS), TRUE)
   Eos_dir         = Fuego
   #Chemistry_Model = ERC_nheptane
-  Chemistry_Model = LiDryer
-  #Chemistry_Model = dodecane_wang
+  #Chemistry_Model = LiDryer
+  Chemistry_Model = dodecane_wang
   Reactions_dir   = Fuego
   Transport_dir   = Simple
 else

@@ -683,6 +683,7 @@ class CPickler(CMill):
         # Fuego Functions
         self._productionRate(mechanism)
         self._vproductionRate(mechanism)
+        self._DproductionRatePYJAC(mechanism)
         self._DproductionRate(mechanism)
         self._sparsity(mechanism)
         self._ajac(mechanism)
@@ -713,7 +714,8 @@ class CPickler(CMill):
             '#include <math.h>',
             '#include <stdio.h>',
             '#include <string.h>',
-            '#include <stdlib.h>'
+            '#include <stdlib.h>',
+            '#include <jacob.h>'
             ]
         return
 
@@ -799,6 +801,7 @@ class CPickler(CMill):
             '#define CKEQYR CKEQYR',
             '#define CKEQXR CKEQXR',
             '#define DWDOT DWDOT',
+            '#define DWDOT_PYJAC DWDOT_PYJAC',
             '#define SPARSITY_INFO SPARSITY_INFO',
             '#define SPARSITY_PREPROC SPARSITY_PREPROC',
             '#define VCKHMS VCKHMS',
@@ -887,6 +890,7 @@ class CPickler(CMill):
             '#define CKEQYR ckeqyr',
             '#define CKEQXR ckeqxr',
             '#define DWDOT dwdot',
+            '#define DWDOT_PYJAC dwdot_pyjac',
             '#define SPARSITY_INFO sparsity_info',
             '#define SPARSITY_PREPROC sparsity_preproc',
             '#define VCKHMS vckhms',
@@ -975,6 +979,7 @@ class CPickler(CMill):
             '#define CKEQYR ckeqyr_',
             '#define CKEQXR ckeqxr_',
             '#define DWDOT dwdot_',
+            '#define DWDOT_PYJAC dwdot_pyjac_',
             '#define SPARSITY_INFO sparsity_info_',
             '#define SPARSITY_PREPROC sparsity_preproc_',
             '#define VCKHMS vckhms_',
@@ -1108,6 +1113,7 @@ class CPickler(CMill):
             'void CKEQYR'+sym+'(double * restrict rho, double * restrict T, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict eqcon);',
             'void CKEQXR'+sym+'(double * restrict rho, double * restrict T, double * restrict x, int * iwrk, double * restrict rwrk, double * restrict eqcon);',
             'void DWDOT(double * restrict J, double * restrict sc, double * restrict T, int * consP);',
+            'void DWDOT_PYJAC(double * restrict J, double * restrict y, double * restrict Tp, double * restrict Press);',
             'void SPARSITY_INFO(int * nJdata, int * consP);',
             'void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP);',
             'void aJacobian(double * restrict J, double * restrict sc, double T, int consP);',
@@ -6692,6 +6698,86 @@ class CPickler(CMill):
 
         return
 
+    def _DproductionRatePYJAC(self, mechanism):
+
+        species_list = [x.symbol for x in mechanism.species()]
+        nSpecies = len(species_list)
+
+        self._write()
+        self._write(self.line('compute the reaction Jacobian using PyJac'))
+        self._write('void DWDOT_PYJAC(double * restrict J, double * restrict y, double * restrict Tp, double * restrict Press)')
+        self._write('{')
+        self._indent()
+
+        self._write('double y_pyjac[%d];' % (nSpecies + 1))
+        self._write('double J_reorg[%d];' % (nSpecies+1)**2)
+
+        self._write()
+        self._write(self.line(' INPUT Y'))
+        self._write('y_pyjac[0] = *Tp;')
+        self._write('for (int k=0; k<%d; k++) {' % nSpecies)
+        self._indent()
+        self._write('y_pyjac[1+k] = y[k];')
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('double Press_MKS = *Press / 10.0;')
+
+        self._write()
+        self._write('for (int k=0; k<%d; k++) {' % (nSpecies+1)**2)
+        self._indent()
+        self._write('J[k] = 0.0;')
+        self._write('J_reorg[k] = 0.0;')
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('eval_jacob(0, Press_MKS, y_pyjac, J);')
+
+        self._write()
+        self._write('/* Reorganization */')
+        self._write('for (int k=0; k<%d; k++) {' %(nSpecies + 1))
+        self._indent()
+        self._write('J_reorg[k*%d + %d] = J[k*%d + 0];' % (nSpecies+1, nSpecies, nSpecies+1))
+        self._write('for (int i=0; i<%d; i++) {' %(nSpecies))
+        self._indent()
+        self._write('J_reorg[k*%d + i] = J[k*%d + (i + 1)];' % (nSpecies+1, nSpecies+1))
+        self._outdent()
+        self._write('}')
+        self._outdent()
+        self._write('}')
+
+        self._write('for (int k=0; k<%d; k++) {' %(nSpecies + 1))
+        self._indent()
+        self._write('J[%d*%d + k] = J_reorg[k];' % (nSpecies, nSpecies+1))
+        self._outdent()
+        self._write('}')
+
+        self._write('for (int k=0; k<%d; k++) {' %((nSpecies+1)*nSpecies))
+        self._indent()
+        self._write('J[k] = J_reorg[k + %d];' % (nSpecies + 1))
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('/* Go back to CGS */')
+        self._write('for (int k=0; k<%d; k++) {' %(nSpecies))
+        self._indent()
+        self._write('/* dwdot[k]/dT */')
+        self._write('J[%d*%d + k] *= 1.e-3;' % (nSpecies, nSpecies+1))
+        self._write('/* dTdot/d[X] */')
+        self._write('J[k*%d + %d] *= 1.e3;' % (nSpecies+1, nSpecies))
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('return;')
+        self._outdent()
+
+        self._write('}')
+
+        return
 
     def _DproductionRate(self, mechanism):
 
@@ -6746,7 +6832,7 @@ class CPickler(CMill):
 
         self._write()
         self._write(self.line('compute the sparsity pattern Jacobian'))
-        self._write('void SPARSITY_INFO( int * nJdata, int * consP, int * consP)')
+        self._write('void SPARSITY_INFO( int * nJdata, int * consP)')
         self._write('{')
         self._indent()
 
@@ -6785,7 +6871,8 @@ class CPickler(CMill):
         self._write()
         self._write()
 
-        self._write('void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP, int * consP)')
+        self._write(self.line('compute the sparsity pattern Jacobian'))
+        self._write('void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP)')
         self._write('{')
         self._indent()
 
@@ -7222,6 +7309,8 @@ class CPickler(CMill):
 
         if isPD:
             self._write('dcdc_fac = q/alpha*(1.0/(Pr+1.0) + dlogFdlogPr);')
+        #elif has_alpha:
+        #    self._write('dcdc_fac = q_nocor;')
 
         def dqdc_simple(dqdc_s, k):
             if dqdc_s ==  "0":
@@ -7283,15 +7372,17 @@ class CPickler(CMill):
             for k in range(nSpecies):
                 dqdc_s = self._Denhancement(mechanism,reaction,k,False)
                 if dqdc_s != '0':
-                    if dqdc_s == '1':
-                        dqdc_s ='dcdc_fac'
-                    elif isPD:
-                        dqdc_s +='*dcdc_fac'
-                elif has_alpha:
-                    if dqdc_s == '1':
-                        dqdc_s ='q_nocor'
-                    else:
-                        dqdc_s +='*q_nocor'
+                    if isPD:
+                        if dqdc_s == '1':
+                            dqdc_s ='dcdc_fac'
+                        elif isPD:
+                            dqdc_s +='*dcdc_fac'
+                    elif has_alpha:
+                        if dqdc_s == '1':
+                            dqdc_s ='q_nocor'
+                        else:
+                            dqdc_s +='*q_nocor'
+
                 dqdc_s = dqdc_simple(dqdc_s,k)
                 if dqdc_s:
                     self._write('dqdc[%d] = %s;' % (k,dqdc_s))
@@ -8829,7 +8920,7 @@ class CPickler(CMill):
 
         self._outdent()
 
-        self._write('};')
+        self._write('}')
 
         return
 
@@ -8914,7 +9005,7 @@ class CPickler(CMill):
 
         self._outdent()
 
-        self._write('};')
+        self._write('}')
 
         return
 
@@ -9031,7 +9122,7 @@ class CPickler(CMill):
 
         self._outdent()
 
-        self._write('};')
+        self._write('}')
 
         #header for cond
         self._write()
@@ -9056,7 +9147,7 @@ class CPickler(CMill):
 
         self._outdent()
 
-        self._write('};')
+        self._write('}')
 
         return
 
@@ -9152,7 +9243,7 @@ class CPickler(CMill):
 
         self._outdent()
 
-        self._write('};')
+        self._write('}')
 
         return
 
@@ -9262,7 +9353,7 @@ class CPickler(CMill):
 
         self._outdent()
 
-        self._write('};')
+        self._write('}')
         
         return
 
@@ -9291,7 +9382,7 @@ class CPickler(CMill):
 
         self._outdent()
 
-        self._write('};')
+        self._write('}')
         
         return
 
@@ -9826,7 +9917,7 @@ class CPickler(CMill):
 
         self._outdent()
 
-        self._write('};')
+        self._write('}')
 
         return
 
