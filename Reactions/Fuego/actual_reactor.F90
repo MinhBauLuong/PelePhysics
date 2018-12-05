@@ -198,7 +198,7 @@ contains
                 if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVDlsSetDenseJacFn()")
             end if
         else if (iDense == 99) then
-            print *,"   -- iterative solver: no J, not preconditioned"
+            call amrex_abort("--> iterative solver: no J, not preconditioned")
             !ierr = FCVSpilsSetJacTimes(CVmem, NULL, NULL);
 	    !ierr = FCVSpilsSetPreconditioner(CVmem, Precond, PSolve);
         else 
