@@ -1,11 +1,12 @@
 #include <actual_Creactor.h> 
 
 /**********************************/
+
 /* Global Variables */
-  N_Vector y         = NULL;
+  N_Vector y  = NULL;
   SUNLinearSolver LS = NULL;
   SUNMatrix A = NULL;
-  int NEQ       = 0;
+  int NEQ    = 0;
   int NCELLS    = 0;
   int iDense_Creact = 1;
   int iJac_Creact   = 0;
@@ -17,20 +18,23 @@
   double *rhoesrc_ext = NULL;
   double *rhohsrc_ext = NULL;
   double *rYsrc = NULL;
+  UserData data = NULL;
 
 /**********************************/
 /* Definitions */
+/* Initialization routine, called once at the begining of the problem */
 int extern_cInit(const int* cvode_meth,const int* cvode_itmeth, 
 		const int* cvode_iJac, const int* cvode_iE,
 		const int* cvode_iDense, const int* Ncells){
 
-	int flag, neq_tot ;
+	int flag;
 	realtype reltol, time;
 	N_Vector atol;
 	realtype *ratol;
 	double rwrk;
 	int iwrk;
 	int mm, ii, nfit;
+	int neq_tot;
 
 	ckindx_(&iwrk,&rwrk,&mm,&NEQ,&ii,&nfit);
         if (iverbose > 1) {
@@ -49,7 +53,11 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 
 	/* Definition of main vector */
 	y = N_VNew_Serial(neq_tot);
-	if(check_flag((void*)y, "N_VNew_Serial", 0)) return(1);
+	if (check_flag((void *)y, "N_VNew_Serial", 0)) return(1);
+
+        /* Does not work for more than 1 cell right now */
+	data = AllocUserData();
+	if(check_flag((void *)data, "AllocUserData", 2)) return(1);
 
 	/* Call CVodeCreate to create the solver memory and specify the
 	 * Backward Differentiation Formula and the use of a Newton iteration */
@@ -61,6 +69,10 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	    amrex::Abort("\n--> Weird inputs to CVodeCreate. Viable options are CV_BDF (=2), CV_NEWTON (=2)\n");
 	}
 
+	/* Set the pointer to user-defined data */
+	flag = CVodeSetUserData(cvode_mem, data);
+	if(check_flag(&flag, "CVodeSetUserData", 1)) return(1);   
+
         time = 0.0e+0;
 	/* Call CVodeInit to initialize the integrator memory and specify the
 	 * user's right hand side function, the inital time, and 
@@ -69,7 +81,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	if (check_flag(&flag, "CVodeInit", 1)) return(1);
 	
 	/* Definition of tolerances: one for each species */
-	reltol = 1.0e-05;
+	reltol = 1.0e-10;
         atol  = N_VNew_Serial(neq_tot);
 	ratol = N_VGetArrayPointer(atol);
         for (int i=0; i<neq_tot; i++) {
@@ -99,8 +111,13 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
             printf("\n--> Using an Iterative Solver \n");
 
             /* Create the linear solver object */
-	    LS = SUNSPGMR(y, PREC_NONE, 0);
-	    if(check_flag((void *)LS, "SUNDenseLinearSolver", 0)) return(1);
+	    if (iJac_Creact == 0) {
+	        LS = SUNSPGMR(y, PREC_NONE, 0);
+	        if(check_flag((void *)LS, "SUNDenseLinearSolver", 0)) return(1);
+	    } else {
+	        LS = SUNSPGMR(y, PREC_LEFT, 0);
+	        if(check_flag((void *)LS, "SUNDenseLinearSolver", 0)) return(1);
+	    }
 
 	    /* Set CVSpils linear solver to LS */
 	    flag = CVSpilsSetLinearSolver(cvode_mem, LS);
@@ -112,29 +129,32 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	if (iJac_Creact == 0) {
             printf("\n--> Without Analytical J\n");
 	} else {
-	    if (iDense_Creact == 1) {
-                printf("\n--> With Analytical J\n");
-                flag = CVDlsSetJacFn(cvode_mem, cJac);
-	        if(check_flag(&flag, "CVDlsSetJacFn", 1)) return(1);
-	    } else if (iDense_Creact == 99) {
-                printf("\n--> With Jtv function \n");
+            printf("\n--> With Analytical J\n");
+	    if (iDense_Creact == 99) {
+                if (iverbose > 1) {
+                    printf("\n    (99)\n");
+		}
 	        /* Set the JAcobian-times-vector function */
-	        flag = CVSpilsSetJacTimes(cvode_mem, NULL, jtv);
+	        flag = CVSpilsSetJacTimes(cvode_mem, NULL, NULL);
 	        if(check_flag(&flag, "CVSpilsSetJacTimes", 1)) return(1);
 	        /* Set the preconditioner solve and setup functions */
 	        flag = CVSpilsSetPreconditioner(cvode_mem, Precond, PSolve);
 	        if(check_flag(&flag, "CVSpilsSetPreconditioner", 1)) return(1);
-		printf("FLAG PRECOND %d\n", flag);
 	    } else {
-	        amrex::Abort("\n--> No Analytical J for Iterative Solvers");
+                if (iverbose > 1) {
+                    printf("\n    (1)\n");
+		}
+	        /* Set the user-supplied Jacobian routine Jac */
+                flag = CVDlsSetJacFn(cvode_mem, cJac);
+		if(check_flag(&flag, "CVDlsSetJacFn", 1)) return(1);
 	    }
 	}
 
+        /* Set the max number of time steps */ 
 	flag = CVodeSetMaxNumSteps(cvode_mem, 10000);
 	if(check_flag(&flag, "CVodeSetMaxNumSteps", 1)) return(1);
 
 	/* Define vectors to be used later in creact */
-	// GPU stuff: might want to rethink this and put everything in userdata
 	if (iE_Creact == 1) { 
 	    rhoe_init = (double *) malloc(NCELLS*sizeof(double));
 	    rhoesrc_ext = (double *) malloc( NCELLS*sizeof(double));
@@ -154,10 +174,11 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	return(0);
 }
 
-/* Main routine for external looping */
+/* Main CVODE call routine */
 int actual_cReact(realtype *rY_in, realtype *rY_src_in, 
 		realtype *rX_in, realtype *rX_src_in,
-		realtype *P_in, realtype *dt_react, realtype *time){
+		realtype *P_in, 
+                realtype *dt_react, realtype *time){
 
 	realtype time_init, time_out ;
 	int flag;
@@ -192,72 +213,50 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
             rX_in[i] = rX_in[i] + (*dt_react) * rX_src_in[i];
 	}
 
-	/* tests HP */
-        for (int tid = 0; tid < NCELLS; tid ++) {
-	    double rhov, energy, temp;
-	    double MF[NEQ];
-            //realtype activity[NEQ], cdot[NEQ], molecular_weight[NEQ];
-            int * iwrk;
-            double *  rwrk;
-	    int  lierr;
-	    rhov = 0.0;
-            int offset = tid * (NEQ + 1); 
-            for (int k = 0; k < NEQ; k ++) {
-		rhov =  rhov + rY_in[offset + k];
+	/* VERBOSE */
+        if (iverbose > 5) {
+            for (int tid = 0; tid < NCELLS; tid ++) {
+	        double rhov, energy, temp, energy2;
+	        double MF[NEQ];
+                //realtype activity[NEQ], cdot[NEQ], molecular_weight[NEQ];
+                int * iwrk;
+                double *  rwrk;
+	        int  lierr;
+	        rhov = 0.0;
+                int offset = tid * (NEQ + 1); 
+                for (int k = 0; k < NEQ; k ++) {
+	    	rhov =  rhov + rY_in[offset + k];
+	        }
+                //ckwt_(iwrk, rwrk, molecular_weight);
+                for (int k = 0; k < NEQ; k ++) {
+	    	MF[k] = rY_in[offset + k]/rhov;
+	            //activity[k] = rY_in[offset + k]/(molecular_weight[k]);
+	        }
+	        energy = rX_in[tid]/rhov ;
+	        if (iE_Creact == 1) { 
+	            get_t_given_ey_(&energy, MF, iwrk, rwrk, &temp, &lierr);
+	            ckhbms_(&temp, MF, iwrk, rwrk, &energy2);
+	            ckubms_(&temp, MF, iwrk, rwrk, &energy);
+	    	ckpy_(&rhov, &temp, MF, iwrk, rwrk, P_in);
+	            printf("e,h,p,rho ? %4.16e %4.16e %4.16e %4.16e \n",energy, energy2, *P_in, rhov);
+	        } else {
+	            get_t_given_hy_(&energy, MF, iwrk, rwrk, &temp, &lierr);
+	            ckhbms_(&temp, MF, iwrk, rwrk, &energy);
+	            ckubms_(&temp, MF, iwrk, rwrk, &energy2);
+	    	ckpy_(&rhov, &temp, MF, iwrk, rwrk, P_in);
+	            printf("e,h,p,rho ? %4.16e %4.16e %4.16e %4.16e\n",energy2, energy, *P_in, rhov);
+	        }
+	        //rY_in[offset + NEQ] =  temp;
+	        // DEBUG CHEKS
+                //ckwc_(&temp, activity, iwrk, rwrk, cdot);
+	        // *P_in = cdot[2];
 	    }
-            //ckwt_(iwrk, rwrk, molecular_weight);
-            for (int k = 0; k < NEQ; k ++) {
-		MF[k] = rY_in[offset + k]/rhov;
-	        //activity[k] = rY_in[offset + k]/(molecular_weight[k]);
-	    }
-	    energy = rX_in[tid]/rhov ;
-	    if (iE_Creact == 1) { 
-	        get_t_given_ey_(&energy, MF, iwrk, rwrk, &temp, &lierr);
-	    } else {
-	        get_t_given_hy_(&energy, MF, iwrk, rwrk, &temp, &lierr);
-	    }
-	    rY_in[offset + NEQ] =  temp;
-	    // DEBUG CHEKS
-            //ckwc_(&temp, activity, iwrk, rwrk, cdot);
-	    //*P_in = cdot[2];
-	}
 
-	/* If in debug mode: print stats */
-        if (iverbose > 2) {
-           int ierr;
-	   double htmp;
-           printf("\n......cvode done:\n");
-           ierr = CVodeGetLastStep(cvode_mem, &htmp);
-           printf(" -- last successful step size = %4.8e \n",htmp);
-           ierr = CVodeGetCurrentStep(cvode_mem, &htmp);
-           printf(" -- next step to try = %4.8e \n",htmp);
-           ierr = CVodeGetCurrentTime(cvode_mem, &htmp);
-           printf(" -- integrated time reached = %4.8e \n",htmp);
-	   long int itmp, itmp2; 
-           ierr = CVodeGetNumSteps(cvode_mem, &itmp);
-           printf(" -- number of time steps (nst) = %-6ld \n",itmp);
-           ierr = CVodeGetNumRhsEvals(cvode_mem, &itmp);
-           ierr = CVSpilsGetNumRhsEvals(cvode_mem, &itmp2);
-           itmp = itmp + itmp2;
-           printf(" -- number of fRHS EVAL (nfe+nfels) = %-6ld \n", itmp);
-           ierr = CVDlsGetNumJacEvals(cvode_mem, &itmp);
-           printf(" -- number of Jac EVAL = %-6ld \n", itmp);
-	   int itmp3; 
-           ierr = CVodeGetLastOrder(cvode_mem, &itmp3);
-           printf(" -- method order last used = %d \n", itmp3);
-           ierr = CVodeGetCurrentOrder(cvode_mem, &itmp3);
-           printf(" -- method order to be used = %d \n", itmp3);
-           ierr = CVodeGetNumLinSolvSetups(cvode_mem, &itmp);
-	   printf(" -- number of linear solver setups %-6ld \n", itmp);
-           ierr = CVodeGetNumErrTestFails(cvode_mem,  &itmp);
-	   printf(" -- number of err test fails (netf) %-6ld \n", itmp);
-           ierr = CVodeGetNumNonlinSolvIters(cvode_mem, &itmp);
-           printf(" -- number of Newton iterations (nni) %-6ld \n", itmp);
-           ierr = CVodeGetNumNonlinSolvConvFails(cvode_mem, &itmp);
-	   printf(" -- number of Newton failures %-6ld \n", itmp);
-           ierr = CVodeGetNumGEvals(cvode_mem, &itmp);
-	   printf(" -- nge ? %-6ld \n", itmp);
+	PrintFinalStats(cvode_mem);
+
 	}
+	
+
 	return(0);
 }
 
@@ -354,48 +353,41 @@ static int cJac(realtype tn, N_Vector u, N_Vector fu, SUNMatrix J,
   int tid;
   for (tid = 0; tid < NCELLS; tid ++) {
       realtype *J_col_k;
-      realtype rho, temp, energy;
-      realtype massfrac[NEQ], activity[NEQ], molecular_weight[NEQ];
+      realtype  temp; 
+      realtype activity[NEQ], molecular_weight[NEQ];
       realtype Jmat_tmp[(NEQ+1)*(NEQ+1)];
-      double * rwrk;
-      int * iwrk;
+      double rwrk;
+      int iwrk;
 
       int offset = tid * (NEQ + 1); 
-  
+
       /* MW CGS */
-      ckwt_(iwrk, rwrk, molecular_weight);
-      /* rho MKS */ 
-      rho = 0.0;
-      for (int i = 0; i < NEQ; i++){
-          rho = rho + ydata[offset + i];
-      }
+      ckwt_(&iwrk, &rwrk, molecular_weight);
       /* temp */
       temp = ydata[offset + NEQ];
       for (int i = 0; i < NEQ; i++){
-          massfrac[i] = ydata[offset + i]/rho;
           activity[i] = ydata[offset + i]/(molecular_weight[i]);
       }
       /* NRG CGS */
+      int consP;
       if (iE_Creact == 1) {
-            energy = (rhoe_init[tid] + rhoesrc_ext[tid] * tn) /rho;
-	    int consP = 0 ;
-            dwdot_(Jmat_tmp, activity, &temp, &consP);
+	  consP = 0;
+          dwdot_(Jmat_tmp, activity, &temp, &consP);
       } else {
-            energy = (rhoh_init[tid] + rhohsrc_ext[tid] * tn) /rho;
-	    int consP = 1 ;
-            dwdot_(Jmat_tmp, activity, &temp, &consP);
+          consP = 1;
+          dwdot_(Jmat_tmp, activity, &temp, &consP);
       }
       /* fill the sunMat */
       for (int k = 0; k < NEQ; k++){
-	    J_col_k = SM_COLUMN_D(J,offset + k);
-	    for (int i = 0; i < NEQ; i++){
+	  J_col_k = SM_COLUMN_D(J,offset + k);
+	  for (int i = 0; i < NEQ; i++){
 	        J_col_k[offset + i] = Jmat_tmp[k*(NEQ+1)+i] * molecular_weight[i] / molecular_weight[k]; 
-	    }
-	    J_col_k[offset + NEQ] = Jmat_tmp[k*(NEQ+1)+NEQ] *  rho / molecular_weight[k]; 
+          }
+	  J_col_k[offset + NEQ] = Jmat_tmp[k*(NEQ+1)+NEQ] / molecular_weight[k]; 
       }
       J_col_k = SM_COLUMN_D(J,offset + NEQ);
       for (int i = 0; i < NEQ; i++){
-       	    J_col_k[offset + i] = Jmat_tmp[NEQ*(NEQ+1)+i] * molecular_weight[i] / rho; 
+          J_col_k[offset + i] = Jmat_tmp[NEQ*(NEQ+1)+i] * molecular_weight[i]; 
       }
   }
 
@@ -414,8 +406,8 @@ static int jtv(N_Vector v, N_Vector Jv, realtype t, N_Vector u, N_Vector fu,
 
   int tid;
   for (tid = 0; tid < NCELLS; tid ++) {
-	realtype rho, temp;
-	realtype massfrac[NEQ], activity[NEQ], molecular_weight[NEQ];
+	realtype temp;
+	realtype activity[NEQ], molecular_weight[NEQ];
 	realtype J[(NEQ+1)*(NEQ+1)];
 	double rwrk;
 	int iwrk;
@@ -424,25 +416,29 @@ static int jtv(N_Vector v, N_Vector Jv, realtype t, N_Vector u, N_Vector fu,
 
         /* MW CGS */
 	ckwt_(&iwrk, &rwrk, molecular_weight);
-        /* rho MKS */ 
-	rho = 0.0;
 	for (int i = 0; i < NEQ; i++){
-            rho = rho + udata[offset + i];
-	}
-	for (int i = 0; i < NEQ; i++){
-            massfrac[i] = udata[offset + i]/rho;
             activity[i] = udata[offset + i]/(molecular_weight[i]);
 	}
         /* temp */
 	temp = udata[offset + NEQ];
         /* NRG CGS */
         if (iE_Creact == 1) {
-            int consP = 0 ;
+            int consP = 0;
             dwdot_(J, activity, &temp, &consP);
         } else {
 	    int consP = 1 ;
             dwdot_(J, activity, &temp, &consP);
         }
+
+	/* PRINT JAC INFO: debug mode
+	for (int i = 0; i < NEQ+1; i++){
+	    for (int j = 0; j < NEQ+1; j++){
+                printf(" %4.8e ", (J[j*(NEQ+1)+i]));
+	    }
+            printf(" \n");
+	}
+	amrex::Abort("\n--> ABORT\n");
+	*/
 
 	/* reinit */
 	for (int i = 0; i < NEQ+1; i++){
@@ -453,121 +449,194 @@ static int jtv(N_Vector v, N_Vector Jv, realtype t, N_Vector u, N_Vector fu,
             for (int j = 0; j < NEQ; j++){
                 Jvdata[offset + i] = Jvdata[offset + i] + J[j*(NEQ+1)+i] * vdata[offset + j] * molecular_weight[i] / molecular_weight[j];
 	    }
-		Jvdata[offset + i] = Jvdata[offset + i] + J[NEQ*(NEQ+1)+i] * vdata[offset + NEQ] * molecular_weight[i] / rho;
-	    }
-	    for (int j = 0; j < NEQ; j++){
-	        Jvdata[offset + NEQ] = Jvdata[offset + NEQ] + J[j*(NEQ+1)+NEQ] * vdata[offset + j]* rho / molecular_weight[j];
-	    }
-	    Jvdata[offset + NEQ] = Jvdata[offset + NEQ]  + J[(NEQ+1)*(NEQ+1)-1] * vdata[offset + NEQ] ;  
+            Jvdata[offset + i] = Jvdata[offset + i] + J[NEQ*(NEQ+1)+i] * vdata[offset + NEQ] * molecular_weight[i];
+        }
+	for (int j = 0; j < NEQ; j++){
+	    Jvdata[offset + NEQ] = Jvdata[offset + NEQ] + J[j*(NEQ+1)+NEQ] * vdata[offset + j] / molecular_weight[j];
+	}
+	Jvdata[offset + NEQ] = Jvdata[offset + NEQ]  + J[(NEQ+1)*(NEQ+1)-1] * vdata[offset + NEQ] ;  
   }
 
-	return(0);
+  return(0);
 }
 
+
+/* Preconditioner setup routine. Generate and preprocess P. */
 static int Precond(realtype tn, N_Vector u, N_Vector fu, booleantype jok, 
 		booleantype *jcurPtr, realtype gamma, void *user_data)
 {
+  UserData data_wk;
+  realtype **(*P)[1], **(*Jbd)[1];
+  sunindextype *(*pivot)[1], ierr;
+  realtype *udata, **a, **j;
+  realtype temp;
+  realtype massfrac[NEQ];
+  realtype Jmat[(NEQ+1)*(NEQ+1)];
+  realtype activity[NEQ], molecular_weight[NEQ];
+  double rwrk;
+  int iwrk;
+
+  /* Make local copies of pointers in user_data, and of pointer to u's data */
+  data_wk = (UserData) user_data;   
+  P = (data_wk->P);
+  Jbd = (data_wk->Jbd);
+  pivot = (data_wk->pivot);
+  udata = N_VGetArrayPointer(u);
+
+  if (jok) {
+      /* jok = SUNTRUE: Copy Jbd to P */
+      denseCopy(Jbd[0][0], P[0][0], NEQ+1, NEQ+1);
+      *jcurPtr = SUNFALSE;
+  } else {
+    /* jok = SUNFALSE: Generate Jbd from scratch and copy to P */
+    /* Make local copies of problem variables, for efficiency. */
+    realtype rho = 0.0;
+    for (int i = 0; i < NEQ; i++){
+        rho = rho + udata[i];
+    }
+    for (int i = 0; i < NEQ; i++){
+        massfrac[i] = udata[i]/rho;
+    }
+    temp = udata[NEQ];
+
+    ckytcr_(&rho, &temp, massfrac, &iwrk, &rwrk, activity);
+    // C in mol/cm3
+    int consP;
+    if (iE_Creact == 1) { 
+        consP = 0;
+    } else {
+        consP = 1;
+    }
+    dwdot_precond_(Jmat, activity, &temp, &consP);
+    ckwt_(&iwrk, &rwrk, molecular_weight);
+    /* Compute Jacobian.  Load into P. */
+    //printf("GOT HERE %f \n", Jmat[0*(NEQ+1) + 0]);
+    denseScale(0.0, Jbd[0][0], NEQ+1, NEQ+1);
+    //j = Jbd[0][0];
+    //printf("J ? %f \n", j[0][0]);
+    //a = P[0][0];
+    for (int i = 0; i < NEQ; i++) {
+        for (int k = 0; k < NEQ; k++) {
+            (Jbd[0][0])[k][i] = Jmat[k*(NEQ+1) + i] * molecular_weight[i] / molecular_weight[k];
+            //j[i][k] = Jmat[k*(NEQ+1) + i] * molecular_weight[i] / molecular_weight[k];
+        }
+        (Jbd[0][0])[i][NEQ] = Jmat[i*(NEQ+1) + NEQ] / molecular_weight[i];
+        //j[NEQ][i] = Jmat[i*(NEQ+1) + NEQ] / molecular_weight[i];
+    }
+    for (int i = 0; i < NEQ; i++) {
+        (Jbd[0][0])[NEQ][i] = Jmat[NEQ*(NEQ+1) + i] * molecular_weight[i];
+        //j[i][NEQ] = Jmat[NEQ*(NEQ+1) + i] * molecular_weight[i];
+    }
+      
+    denseCopy(Jbd[0][0], P[0][0], NEQ+1, NEQ+1);
+    *jcurPtr = SUNTRUE;
+  }
+  
+  /* Scale by -gamma */
+  denseScale(-gamma, P[0][0], NEQ+1, NEQ+1);
+  
+  /* Add identity matrix and do LU decompositions on blocks in place. */
+  denseAddIdentity(P[0][0], NEQ+1);
+  ierr = denseGETRF(P[0][0], NEQ+1, NEQ+1, pivot[0][0]);
+  if (ierr != 0) return(1);
+
   return(0);
 }
+
 
 static int PSolve(realtype tn, N_Vector u, N_Vector fu, N_Vector r, N_Vector z,
                   realtype gamma, realtype delta, int lr, void *user_data)
 {
-  realtype *zdata;
-  realtype *rdata;
-  realtype *udata;
+  realtype **(*P)[1];
+  sunindextype *(*pivot)[1];
+  realtype *zdata, *v;
+  UserData data_wk;
 
+  /* Extract the P and pivot arrays from user_data. */
+
+  data_wk = (UserData) user_data;
+  P = data_wk->P;
+  pivot = data_wk->pivot;
   zdata = N_VGetArrayPointer(z);
-  udata  = N_VGetArrayPointer(u);
-  rdata  = N_VGetArrayPointer(r);
-
+  
   N_VScale(1.0, r, z);
-
-  //int tid;
-  //for (tid = 0; tid < NCELLS; tid ++) {
-  //    realtype J[NEQ+1];
-  //    int consP;
-  //    realtype rho, temp;
-  //    realtype activity[NEQ], molecular_weight[NEQ];
-  //    double rwrk;
-  //    int iwrk;
-
-  //    int offset = tid * (NEQ + 1); 
-
-  //    /* MW CGS */
-  //    ckwt_(&iwrk, &rwrk, molecular_weight);
-  //    /* rho CGS */ 
-  //    rho = 0.0;
-  //    for (int i = 0; i < NEQ; i++){
-  //        rho = rho + udata[offset + i];
-  //    }
-  //    /* Cons CGS */ 
-  //    for (int i = 0; i < NEQ; i++){
-  //        activity[i] = udata[offset + i]/(molecular_weight[i]);
-  //    }
-  //    /* temp */
-  //    temp = udata[offset + NEQ];
-  //    if (iE_Creact == 1) {
-  //        consP = 0;
-  //        ajacobian_diag_(J, activity, temp, consP);
-  //    } else {
-  //        consP = 1;
-  //        ajacobian_diag_(J, activity, temp, consP);
-  //    }
-  //    
-  //    for (int i = 0; i < NEQ; i++){
-  //        zdata[offset + i] = rdata[offset + i]/(1-gamma*J[i]);
-  //    }
-  //}
+  
+  /* Solve the block-diagonal system Pz = r using LU factors stored
+     in P and pivot data in pivot, and return the solution in z. */
+  v = zdata;
+  denseGETRS(P[0][0], NEQ+1, pivot[0][0], v);
 
   return(0);
 }
  
-
- /* Free and destroy memory */
 void extern_cFree(){
 
-	printf("In cFree\n");
-	SUNLinSolFree(LS);
-	N_VDestroy(y);          /* Free the y vector */
+	// Print some final statistics 
+	PrintFinalStats(cvode_mem);
+
+	// Free y and abstol vectors 
 	CVodeFree(&cvode_mem);
+	SUNLinSolFree(LS);
 	if (iDense_Creact == 1) {
 	    SUNMatDestroy(A);
 	}
+	FreeUserData(data);
 }
 
-/* Get and print some final statistics */
+/* 
+ * Get and print some final statistics
+ */
+
 static void PrintFinalStats(void *cvodeMem)
 {
   long int nst, nfe, nsetups, nje, nfeLS, nni, ncfn, netf, nge;
+  long int nli, npe, nps, ncfl;
   int flag;
 
   flag = CVodeGetNumSteps(cvodeMem, &nst);
   check_flag(&flag, "CVodeGetNumSteps", 1);
   flag = CVodeGetNumRhsEvals(cvodeMem, &nfe);
   check_flag(&flag, "CVodeGetNumRhsEvals", 1);
-  flag = CVodeGetNumLinSolvSetups(cvodeMem, &nsetups);
-  check_flag(&flag, "CVodeGetNumLinSolvSetups", 1);
-  flag = CVodeGetNumErrTestFails(cvodeMem, &netf);
-  check_flag(&flag, "CVodeGetNumErrTestFails", 1);
   flag = CVodeGetNumNonlinSolvIters(cvodeMem, &nni);
   check_flag(&flag, "CVodeGetNumNonlinSolvIters", 1);
+  flag = CVodeGetNumLinSolvSetups(cvodeMem, &nsetups);
+  check_flag(&flag, "CVodeGetNumLinSolvSetups", 1);
   flag = CVodeGetNumNonlinSolvConvFails(cvodeMem, &ncfn);
   check_flag(&flag, "CVodeGetNumNonlinSolvConvFails", 1);
 
-  flag = CVDlsGetNumJacEvals(cvodeMem, &nje);
-  check_flag(&flag, "CVDlsGetNumJacEvals", 1);
-  flag = CVDlsGetNumRhsEvals(cvodeMem, &nfeLS);
-  check_flag(&flag, "CVDlsGetNumRhsEvals", 1);
-
-  flag = CVodeGetNumGEvals(cvodeMem, &nge);
-  check_flag(&flag, "CVodeGetNumGEvals", 1);
+  if (iDense_Creact == 1){
+      flag = CVDlsGetNumRhsEvals(cvodeMem, &nfeLS);
+      check_flag(&flag, "CVDlsGetNumRhsEvals", 1);
+      flag = CVDlsGetNumJacEvals(cvodeMem, &nje);
+      check_flag(&flag, "CVDlsGetNumJacEvals", 1);
+  } else if (iDense_Creact == 99){
+      flag = CVSpilsGetNumRhsEvals(cvode_mem, &nfeLS);
+      check_flag(&flag, "CVSpilsGetNumRhsEvals", 1);
+      //flag = CVSpilsGetNumJtimesEvals(cvodeMem, &nje);
+      flag = CVSpilsGetNumJTSetupEvals(cvodeMem, &nje);
+      check_flag(&flag, "CVSpilsGetNumJTSetupEvals", 1);
+      flag = CVSpilsGetNumPrecEvals(cvodeMem, &npe);
+      check_flag(&flag, "CVSpilsGetNumPrecEvals", 1);
+      flag = CVSpilsGetNumPrecSolves(cvodeMem, &nps);
+      check_flag(&flag, "CVSpilsGetNumPrecSolves", 1);
+      flag = CVSpilsGetNumLinIters(cvodeMem, &nli);
+      check_flag(&flag, "CVSpilsGetNumLinIters", 1);
+      flag = CVSpilsGetNumConvFails(cvodeMem, &ncfl); 
+      check_flag(&flag, "CVSpilsGetNumConvFails", 1);
+  }
 
   printf("\nFinal Statistics:\n");
-  printf("nst = %-6ld nfe  = %-6ld nsetups = %-6ld nfeLS = %-6ld nje = %ld\n",
-	 nst, nfe, nsetups, nfeLS, nje);
-  printf("nni = %-6ld ncfn = %-6ld netf = %-6ld nge = %ld\n \n",
-	 nni, ncfn, netf, nge);
+  printf("nb dt = %-6ld nb RHS eval = %-6ld nb NonlinSolvIters = %-6ld nb NonlinSolvConvFails = %-6ld \n",
+	 nst, nfe, nni, ncfn);
+  printf("nb LinSolvSetups = %-6ld \n",
+	 nsetups);
+  if (iDense_Creact == 1){
+      printf("NumRhsEvals (for FD) = %-6ld NumJacEvals  = %-6ld \n", nfeLS, nje);
+  } else if (iDense_Creact == 99){
+      printf("NumRhsEvals (for FD jtv) = %-6ld NumJacEvals (not sure)  = %-6ld NumPrecEvals = %-6ld NumPrecSolves = %-6ld \n", 
+		      nfeLS, nje, npe, nps);
+      printf("NumLinIters = %-6ld NumConvfails = %-6ld \n", nli, ncfl);
+  }
 }
 
 /* Check function return value...
@@ -577,6 +646,7 @@ static void PrintFinalStats(void *cvodeMem)
               flag >= 0
      opt == 2 means function allocates memory so check if returned
               NULL pointer */
+
 static int check_flag(void *flagvalue, const char *funcname, int opt)
 {
   int *errflag;
@@ -603,4 +673,34 @@ static int check_flag(void *flagvalue, const char *funcname, int opt)
 
   return(0);
 }
+
+static UserData AllocUserData(void)
+{
+  UserData data_wk;
+
+  data_wk = (UserData) malloc(sizeof *data_wk);
+
+  (data_wk->P)[0][0] = newDenseMat(NEQ+1, NEQ+1);
+  (data_wk->Jbd)[0][0] = newDenseMat(NEQ+1, NEQ+1);
+  (data_wk->pivot)[0][0] = newIndexArray(NEQ+1);
+
+  return(data_wk);
+}
+
+/* Free data memory */
+static void FreeUserData(UserData data_wk)
+{
+  destroyMat((data_wk->P)[0][0]);
+  destroyMat((data_wk->Jbd)[0][0]);
+  destroyArray((data_wk->pivot)[0][0]);
+  free(data_wk);
+} 
+
+
+
+
+
+
+
+
 
