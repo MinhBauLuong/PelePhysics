@@ -9,6 +9,10 @@ out_*
 OUT_*
 *_ERC
 *_ndod
+*_ARV*
+THERMO_APPEND.txt
+*_test_sparse
+LiDryer.c_*
 
 # AMReX build directories
 d/
@@ -38,6 +42,7 @@ chk*
 extract.py
 script.py
 script_gpu.py
+script_therm.py
 
 # Folders
 ReactEvalCVODE/
