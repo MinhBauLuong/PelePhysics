@@ -1,6 +1,8 @@
 cEXE_sources+=LiDryer.c
-cEXE_sources+=jacob.c
-cEXE_headers+=jacob.h
+ifeq ($(USE_PYJAC), TRUE)
+    cEXE_sources+=jacob.c
+    cEXE_headers+=jacob.h
+endif
 
 VPATH_LOCATIONS +=  $(CHEM_DIR)/PMFs
 
