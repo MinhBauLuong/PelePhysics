@@ -191,8 +191,12 @@ contains
                 ierr = FCVDlsSetJacFn(CVmem, c_funloc(f_jac_cvode))
                 if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVDlsSetDenseJacFn()")
             else if (iE == 5) then
+#ifdef USE_PYJAC 
                 ierr = FCVDlsSetJacFn(CVmem, c_funloc(f_jac_cvode_HP_PyJac))
                 if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVDlsSetDenseJacFn()")
+#else
+                call amrex_abort("--> HP version: no Analytical J. To use PYJAC, define USE_PYJAC=TRUE in GNUmakefile")
+#endif
             else 
                 ierr = FCVDlsSetJacFn(CVmem, c_funloc(f_jac_cvode_HP_Fuego))
                 if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVDlsSetDenseJacFn()")
@@ -405,7 +409,7 @@ contains
 
        Y_div_W(:)   = eos_state % massfrac(:) / molecular_weight(:)
        press_recalc = eos_state % rho * eos_state % T * 8.31451e+07 * sum(Y_div_W(:))
-       write(*,*) "e,h,p,rho,p_recalc ? ", eos_state % e, eos_state % h, eos_state % p, react_state_out % rho, press_recalc
+       !write(*,*) "e,h,p,rho,p_recalc ? ", eos_state % e, eos_state % h, eos_state % p, react_state_out % rho, press_recalc
 
     else
 
@@ -996,6 +1000,7 @@ contains
 
   end function f_jac_cvode_HP_Fuego
 
+#ifdef USE_PYJAC 
   integer(c_int) function f_jac_cvode_HP_PyJac(tn, sunvec_y_in, sunvec_f_in, sunMat_J, &
            user_data, tmp1, tmp2, tmp3) result(ierr) bind(C,name='f_jac_cvode_HP_PyJac')
 
@@ -1077,6 +1082,7 @@ contains
         !CALL t_AJac%stop
 
   end function f_jac_cvode_HP_PyJac
+#endif
 
   !CVODE VERSION
   integer(c_int) function f_jac_cvode_KLU(tn, sunvec_y_in, sunvec_f_in, sunmat_J, &
