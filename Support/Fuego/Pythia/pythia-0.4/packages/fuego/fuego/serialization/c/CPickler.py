@@ -684,9 +684,11 @@ class CPickler(CMill):
         self._productionRate(mechanism)
         self._vproductionRate(mechanism)
         self._DproductionRatePYJAC(mechanism)
+        self._DproductionRatePrecond(mechanism)
         self._DproductionRate(mechanism)
         self._sparsity(mechanism)
         self._ajac(mechanism)
+        self._ajacPrecond(mechanism)
         self._dthermodT(mechanism)
         self._progressRate(mechanism)
         self._progressRateFR(mechanism)
@@ -715,7 +717,9 @@ class CPickler(CMill):
             '#include <stdio.h>',
             '#include <string.h>',
             '#include <stdlib.h>',
-            '#include <jacob.h>'
+            '#ifdef USE_PYJAC',
+            '#include <jacob.h>',
+            '#endif'
             ]
         return
 
@@ -801,7 +805,10 @@ class CPickler(CMill):
             '#define CKEQYR CKEQYR',
             '#define CKEQXR CKEQXR',
             '#define DWDOT DWDOT',
+            '#ifdef USE_PYJAC',
             '#define DWDOT_PYJAC DWDOT_PYJAC',
+            '#endif',
+            '#define DWDOT_PRECOND DWDOT_PRECOND',
             '#define SPARSITY_INFO SPARSITY_INFO',
             '#define SPARSITY_PREPROC SPARSITY_PREPROC',
             '#define VCKHMS VCKHMS',
@@ -890,7 +897,10 @@ class CPickler(CMill):
             '#define CKEQYR ckeqyr',
             '#define CKEQXR ckeqxr',
             '#define DWDOT dwdot',
+            '#ifdef USE_PYJAC',
             '#define DWDOT_PYJAC dwdot_pyjac',
+            '#endif',
+            '#define DWDOT_PRECOND dwdot_precond',
             '#define SPARSITY_INFO sparsity_info',
             '#define SPARSITY_PREPROC sparsity_preproc',
             '#define VCKHMS vckhms',
@@ -979,7 +989,10 @@ class CPickler(CMill):
             '#define CKEQYR ckeqyr_',
             '#define CKEQXR ckeqxr_',
             '#define DWDOT dwdot_',
+            '#ifdef USE_PYJAC',
             '#define DWDOT_PYJAC dwdot_pyjac_',
+            '#endif',
+            '#define DWDOT_PRECOND dwdot_precond_',
             '#define SPARSITY_INFO sparsity_info_',
             '#define SPARSITY_PREPROC sparsity_preproc_',
             '#define VCKHMS vckhms_',
@@ -1113,10 +1126,14 @@ class CPickler(CMill):
             'void CKEQYR'+sym+'(double * restrict rho, double * restrict T, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict eqcon);',
             'void CKEQXR'+sym+'(double * restrict rho, double * restrict T, double * restrict x, int * iwrk, double * restrict rwrk, double * restrict eqcon);',
             'void DWDOT(double * restrict J, double * restrict sc, double * restrict T, int * consP);',
-            'void DWDOT_PYJAC(double * restrict J, double * restrict y, double * restrict Tp, double * restrict Press);',
+            '#ifdef USE_PYJAC',
+            'void DWDOT_PYJAC(double * restrict J, double * restrict sc, double * restrict Tp, double * restrict Press);',
+            '#endif',
+            'void DWDOT_PRECOND(double * restrict J, double * restrict sc, double * restrict Tp, int * HP);',
             'void SPARSITY_INFO(int * nJdata, int * consP);',
             'void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP);',
             'void aJacobian(double * restrict J, double * restrict sc, double T, int consP);',
+            'void aJacobian_precond(double * restrict J, double * restrict sc, double T, int HP);',
             'void dcvpRdT(double * restrict species, double * restrict tc);',
             'void GET_T_GIVEN_EY(double * restrict e, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict t, int *ierr);',
             'void GET_T_GIVEN_HY(double * restrict h, double * restrict y, int * iwrk, double * restrict rwrk, double * restrict t, int *ierr);',
@@ -1338,13 +1355,16 @@ class CPickler(CMill):
 
             if thirdBody:
                 efficiencies = reaction.efficiencies
-                self._write("nTB[%d] = %d;" % (id, len(efficiencies)))
-                self._write("TB[%d] = (double *) malloc(%d * sizeof(double));" % (id, len(efficiencies)))
-                self._write("TBid[%d] = (int *) malloc(%d * sizeof(int));" % (id, len(efficiencies)))
-                for i, eff in enumerate(efficiencies):
-                    symbol, efficiency = eff
-                    self._write("TBid[%d][%d] = %.17g; TB[%d][%d] = %.17g; // %s"
-                                % (id, i, mechanism.species(symbol).id, id, i, efficiency, symbol ))
+                if (len(efficiencies) > 1):
+                    self._write("nTB[%d] = %d;" % (id, len(efficiencies)))
+                    self._write("TB[%d] = (double *) malloc(%d * sizeof(double));" % (id, len(efficiencies)))
+                    self._write("TBid[%d] = (int *) malloc(%d * sizeof(int));" % (id, len(efficiencies)))
+                    for i, eff in enumerate(efficiencies):
+                        symbol, efficiency = eff
+                        self._write("TBid[%d][%d] = %.17g; TB[%d][%d] = %.17g; // %s"
+                                    % (id, i, mechanism.species(symbol).id, id, i, efficiency, symbol ))
+                else:
+                    self._write("nTB[%d] = 0;" % (id))
             else:
                 self._write("nTB[%d] = 0;" % (id))
 
@@ -6703,6 +6723,7 @@ class CPickler(CMill):
         species_list = [x.symbol for x in mechanism.species()]
         nSpecies = len(species_list)
 
+        self._write('#ifdef USE_PYJAC')
         self._write()
         self._write(self.line('compute the reaction Jacobian using PyJac'))
         self._write('void DWDOT_PYJAC(double * restrict J, double * restrict y, double * restrict Tp, double * restrict Press)')
@@ -6760,22 +6781,23 @@ class CPickler(CMill):
         self._outdent()
         self._write('}')
 
-        self._write()
-        self._write('/* Go back to CGS */')
-        self._write('for (int k=0; k<%d; k++) {' %(nSpecies))
-        self._indent()
-        self._write('/* dwdot[k]/dT */')
-        self._write('J[%d*%d + k] *= 1.e-3;' % (nSpecies, nSpecies+1))
-        self._write('/* dTdot/d[X] */')
-        self._write('J[k*%d + %d] *= 1.e3;' % (nSpecies+1, nSpecies))
-        self._outdent()
-        self._write('}')
+        #self._write()
+        #self._write('/* Go back to CGS */')
+        #self._write('for (int k=0; k<%d; k++) {' %(nSpecies))
+        #self._indent()
+        #self._write('/* dwdot[k]/dT */')
+        #self._write('J[%d*%d + k] *= 1.e-3;' % (nSpecies, nSpecies+1))
+        #self._write('/* dTdot/d[X] */')
+        #self._write('J[k*%d + %d] *= 1.e3;' % (nSpecies+1, nSpecies))
+        #self._outdent()
+        #self._write('}')
 
         self._write()
         self._write('return;')
         self._outdent()
 
         self._write('}')
+        self._write('#endif')
 
         return
 
@@ -6800,6 +6822,52 @@ class CPickler(CMill):
 
         self._write()
         self._write('aJacobian(J, c, *Tp, *consP);')
+
+        self._write()
+        self._write('/* dwdot[k]/dT */')
+        self._write('for (int k=0; k<%d; k++) {' % nSpecies)
+        self._indent()
+        self._write('J[%d+k] *= 1.e-6;' % (nSpecies*(nSpecies+1)))
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('/* dTdot/d[X] */')
+        self._write('for (int k=0; k<%d; k++) {' % nSpecies)
+        self._indent()
+        self._write('J[k*%d+%d] *= 1.e6;' % (nSpecies+1, nSpecies))
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('return;')
+        self._outdent()
+
+        self._write('}')
+
+        return
+
+    def _DproductionRatePrecond(self, mechanism):
+
+        species_list = [x.symbol for x in mechanism.species()]
+        nSpecies = len(species_list)
+
+        self._write()
+        self._write(self.line('compute an approx to the reaction Jacobian'))
+        self._write('void DWDOT_PRECOND(double * restrict J, double * restrict sc, double * restrict Tp, int * HP)')
+        self._write('{')
+        self._indent()
+
+        self._write('double c[%d];' % (nSpecies))
+        self._write()
+        self._write('for (int k=0; k<%d; k++) {' % nSpecies)
+        self._indent()
+        self._write('c[k] = 1.e6 * sc[k];')
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('aJacobian_precond(J, c, *Tp, *HP);')
 
         self._write()
         self._write('/* dwdot[k]/dT */')
@@ -6915,6 +6983,521 @@ class CPickler(CMill):
 
         return
 
+
+    def _ajacPrecond(self, mechanism):
+
+        nSpecies = len(mechanism.species())
+        nReactions = len(mechanism.reaction())
+
+        self._write()
+        self._write(self.line('compute an approx to the reaction Jacobian'))
+        self._write('void aJacobian_precond(double * restrict J, double * restrict sc, double T, int HP)')
+        self._write('{')
+        self._indent()
+
+        self._write('for (int i=0; i<%d; i++) {' % (nSpecies+1)**2)
+        self._indent()
+        self._write('J[i] = 0.0;')
+        self._outdent()
+        self._write('}')
+        
+        self._write()
+
+        self._write('double wdot[%d];' % (nSpecies))
+        self._write('for (int k=0; k<%d; k++) {' % (nSpecies))
+        self._indent()
+        self._write('wdot[k] = 0.0;')
+        self._outdent()
+        self._write('}')
+        
+        self._write()
+
+        self._write('double tc[] = { log(T), T, T*T, T*T*T, T*T*T*T }; /*temperature cache */')
+        self._write('double invT = 1.0 / tc[1];')
+        self._write('double invT2 = invT * invT;')
+
+        self._write()
+
+        self._write(self.line('reference concentration: P_atm / (RT) in inverse mol/m^3'))
+        self._write('double refC = %g / %g / T;' % (atm.value, R.value))
+        self._write('double refCinv = 1.0 / refC;')
+
+        self._write()
+
+        self._write(self.line('compute the mixture concentration'))
+        self._write('double mixture = 0.0;')
+        self._write('for (int k = 0; k < %d; ++k) {' % nSpecies)
+        self._indent()
+        self._write('mixture += sc[k];')
+        self._outdent()
+        self._write('}')
+
+        self._write()
+
+        self._write(self.line('compute the Gibbs free energy'))
+        self._write('double g_RT[%d];' % (nSpecies))
+        self._write('gibbs(g_RT, tc);')
+
+        self._write()
+
+        self._write(self.line('compute the species enthalpy'))
+        self._write('double h_RT[%d];' % (nSpecies))
+        self._write('speciesEnthalpy(h_RT, tc);')
+
+        self._write()
+
+        self._write('double phi_f, k_f, k_r, phi_r, Kc, q, q_nocor, Corr, alpha;') 
+        self._write('double dlnkfdT, dlnk0dT, dlnKcdT, dkrdT, dqdT;')
+        self._write('double dqdci, dcdc_fac, dqdc[%d];' % (nSpecies))
+        self._write('double Pr, fPr, F, k_0, logPr;') 
+        self._write('double logFcent, troe_c, troe_n, troePr_den, troePr, troe;')
+        self._write('double Fcent1, Fcent2, Fcent3, Fcent;')
+        self._write('double dlogFdc, dlogFdn, dlogFdcn_fac;')
+        self._write('double dlogPrdT, dlogfPrdT, dlogFdT, dlogFcentdT, dlogFdlogPr, dlnCorrdT;')
+        self._write('const double ln10 = log(10.0);')
+        self._write('const double log10e = 1.0/log(10.0);')
+
+        for i, reaction in zip(range(nReactions), mechanism.reaction()):
+
+            lt = reaction.lt
+            if lt:
+                print "Landau-Teller reactions are not supported"
+                sys.exit(1)
+
+            self._write(self.line('reaction %d: %s' % (i+1, reaction.equation())))
+            if reaction.low:  # case 1
+                self._write(self.line('a pressure-fall-off reaction'))
+                self._ajac_reaction_precond(mechanism, reaction, 1)
+            elif reaction.thirdBody:  # case 2
+                self._write(self.line('a third-body and non-pressure-fall-off reaction'))
+                self._ajac_reaction_precond(mechanism, reaction, 2)
+            else:  # case 3
+                self._write(self.line('a non-third-body and non-pressure-fall-off reaction'))
+                self._ajac_reaction_precond(mechanism, reaction, 3)
+            self._write()
+
+        self._write('double c_R[%d], dcRdT[%d], e_RT[%d];' % (nSpecies, nSpecies, nSpecies))
+        self._write('double * eh_RT;')
+        self._write('if (HP) {')
+        self._indent()
+
+        self._write('cp_R(c_R, tc);')
+        self._write('dcvpRdT(dcRdT, tc);')
+        self._write('eh_RT = &h_RT[0];');
+
+        self._outdent()
+        self._write('}')
+        self._write('else {')
+        self._indent()
+
+        self._write('cv_R(c_R, tc);')
+        self._write('dcvpRdT(dcRdT, tc);')
+        self._write('speciesInternalEnergy(e_RT, tc);');
+        self._write('eh_RT = &e_RT[0];');
+
+        self._outdent()
+        self._write('}')
+
+        self._write()
+
+        self._write('double cmix = 0.0, ehmix = 0.0, dcmixdT=0.0, dehmixdT=0.0;')
+        self._write('for (int k = 0; k < %d; ++k) {' % nSpecies)
+        self._indent()
+        self._write('cmix += c_R[k]*sc[k];')
+        self._write('dcmixdT += dcRdT[k]*sc[k];')
+        self._write('ehmix += eh_RT[k]*wdot[k];')
+        self._write('dehmixdT += invT*(c_R[k]-eh_RT[k])*wdot[k] + eh_RT[k]*J[%d+k];' % \
+                        (nSpecies*(nSpecies+1)))
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('double cmixinv = 1.0/cmix;')
+        self._write('double tmp1 = ehmix*cmixinv;')
+        self._write('double tmp3 = cmixinv*T;')
+        self._write('double tmp2 = tmp1*tmp3;')
+        self._write('double dehmixdc;')
+
+        self._write('/* dTdot/d[X] */')
+        self._write('for (int k = 0; k < %d; ++k) {' % nSpecies)
+        self._indent()
+        self._write('dehmixdc = 0.0;')
+        self._write('for (int m = 0; m < %d; ++m) {' % nSpecies)
+        self._indent()
+        self._write('dehmixdc += eh_RT[m]*J[k*%s+m];' % (nSpecies+1))
+        self._outdent()
+        self._write('}')        
+        self._write('J[k*%d+%d] = tmp2*c_R[k] - tmp3*dehmixdc;' % (nSpecies+1,nSpecies))
+        self._outdent()
+        self._write('}')
+
+        self._write('/* dTdot/dT */')
+        self._write('J[%d] = -tmp1 + tmp2*dcmixdT - tmp3*dehmixdT;' % \
+                        (nSpecies*(nSpecies+1)+nSpecies))
+
+        self._outdent()
+        self._write('}')
+        return
+
+
+
+    def _ajac_reaction_precond(self, mechanism, reaction, rcase):
+
+        if rcase == 1: # pressure-dependent reaction
+            isPD = True
+            if reaction.thirdBody:
+                has_alpha = True
+                self._write('/* also 3-body */')
+            else:
+                has_alpha = False
+                self._write('/* non 3-body */')
+                print 'FIXME: pressure dependent non-3-body reaction in _ajac_reaction'
+                sys.exit(1)
+        elif rcase == 2: # third-body and non-pressure-dependent reaction
+            isPD = False
+            has_alpha = True
+        elif rcase == 3: # simple non-third and non-pressure-dependent reaction
+            isPD = False
+            has_alpha = False
+        else:
+            print '_ajac_reaction: wrong case ', rcase
+            exit(1)
+
+        nSpecies = len(mechanism.species())
+        rea_dict = {}
+        pro_dict = {}
+        all_dict = {}
+        sumNuk = 0
+        for symbol, coefficient in reaction.reactants:
+            k = mechanism.species(symbol).id
+            sumNuk -= coefficient
+            if k in rea_dict:
+                coe_old = rea_dict[k][1]
+                rea_dict[k] = (symbol, coefficient+coe_old)
+            else:
+                rea_dict[k] = (symbol,  coefficient)
+        for symbol, coefficient in reaction.products:
+            k = mechanism.species(symbol).id
+            sumNuk += coefficient
+            if k in pro_dict:
+                coe_old = pro_dict[k][1]
+                pro_dict[k] = (symbol, coefficient+coe_old)
+            else:
+                pro_dict[k] = (symbol, coefficient)
+        for k in range(nSpecies):
+            if k in rea_dict and k in pro_dict:
+                sr, nur = rea_dict[k]
+                sp, nup = pro_dict[k]
+                all_dict[k] = (sr, nup-nur)
+            elif k in rea_dict:
+                sr, nur = rea_dict[k]
+                all_dict[k] = (sr, -nur)
+            elif k in pro_dict:
+                sp, nup = pro_dict[k]
+                all_dict[k] = (sp, nup)
+
+        sorted_reactants = sorted(rea_dict.values())
+        sorted_products = sorted(pro_dict.values()) 
+
+        if not reaction.reversible:
+            if isPD or has_alpha:
+                print 'FIXME: inreversible reaction in _ajac_reaction may not work'
+                self._write('/* FIXME: inreversible reaction in _ajac_reaction may not work*/')
+            for k in range(nSpecies):
+                if k in sorted_reactants and k in sorted_products:
+                    print 'FIXME: inreversible reaction in _ajac_reaction may not work'
+                    self._write('/* FIXME: inreversible reaction in _ajac_reaction may not work*/')
+
+        if isPD:
+            Corr_s = 'Corr *'
+        elif has_alpha:
+            Corr_s = 'alpha * '
+        else:
+            Corr_s = ''
+
+        if has_alpha:
+            self._write("/* 3-body correction factor */")
+            self._write("alpha = %s;" % self._enhancement(mechanism, reaction))
+
+        # forward
+        self._write('/* forward */')
+        self._write("phi_f = %s;" % self._sortedPhaseSpace(mechanism, sorted_reactants))
+        #
+        self._write("k_f = prefactor_units[%d] * fwd_A[%d]" % (reaction.id-1,reaction.id-1))
+        self._write("            * exp(fwd_beta[%d] * tc[0] - activation_units[%d] * fwd_Ea[%d] * invT);"
+                    %(reaction.id-1,reaction.id-1,reaction.id-1))
+        self._write("dlnkfdT = fwd_beta[%d] * invT + activation_units[%d] * fwd_Ea[%d] * invT2;"
+                    %(reaction.id-1,reaction.id-1,reaction.id-1))
+
+        if isPD:
+            self._write('/* pressure-fall-off */')
+            self._write("k_0 = low_A[%d] * exp(low_beta[%d] * tc[0] - activation_units[%d] * low_Ea[%d] * invT);"
+                        %(reaction.id-1,reaction.id-1,reaction.id-1,reaction.id-1))
+            self._write('Pr = phase_units[%d] * alpha / k_f * k_0;' % (reaction.id-1))
+            self._write('fPr = Pr / (1.0+Pr);')
+            self._write("dlnk0dT = low_beta[%d] * invT + activation_units[%d] * low_Ea[%d] * invT2;"
+                        %(reaction.id-1,reaction.id-1,reaction.id-1))
+            self._write('dlogPrdT = log10e*(dlnk0dT - dlnkfdT);')
+            self._write('dlogfPrdT = dlogPrdT / (1.0+Pr);')
+            if reaction.sri:
+                self._write('/* SRI form */')
+                print "FIXME: sri not supported in _ajac_reaction yet"
+                sys.exit(1)
+            elif reaction.troe:
+                self._write('/* Troe form */')
+                troe = reaction.troe
+                self._write("logPr = log10(Pr);")
+                self._write('Fcent1 = (fabs(troe_Tsss[%d]) > 1.e-100 ? (1.-troe_a[%d])*exp(-T/troe_Tsss[%d]) : 0.);'
+                            %(reaction.id-1,reaction.id-1,reaction.id-1))
+                self._write('Fcent2 = (fabs(troe_Ts[%d]) > 1.e-100 ? troe_a[%d] * exp(-T/troe_Ts[%d]) : 0.);'
+                            %(reaction.id-1,reaction.id-1,reaction.id-1))
+                self._write('Fcent3 = (troe_len[%d] == 4 ? exp(-troe_Tss[%d] * invT) : 0.);'
+                            %(reaction.id-1,reaction.id-1))
+                self._write('Fcent = Fcent1 + Fcent2 + Fcent3;')
+                self._write("logFcent = log10(Fcent);")
+                self._write("troe_c = -.4 - .67 * logFcent;")
+                self._write("troe_n = .75 - 1.27 * logFcent;")
+                self._write("troePr_den = 1.0 / (troe_n - .14*(troe_c + logPr));")
+                self._write("troePr = (troe_c + logPr) * troePr_den;")
+                self._write("troe = 1.0 / (1.0 + troePr*troePr);")
+                self._write("F = pow(10.0, logFcent * troe);")
+
+                self._write("dlogFcentdT = log10e/Fcent*( ")
+                self._write("    (fabs(troe_Tsss[%d]) > 1.e-100 ? -Fcent1/troe_Tsss[%d] : 0.)"
+                            %(reaction.id-1,reaction.id-1))
+                self._write("  + (fabs(troe_Ts[%d]) > 1.e-100 ? -Fcent2/troe_Ts[%d] : 0.)"
+                            %(reaction.id-1,reaction.id-1))
+                self._write("  + (troe_len[%d] == 4 ? Fcent3*troe_Tss[%d]*invT2 : 0.) );"
+                            %(reaction.id-1,reaction.id-1))
+
+                self._write("dlogFdcn_fac = 2.0 * logFcent * troe*troe * troePr * troePr_den;")
+                self._write('dlogFdc = -troe_n * dlogFdcn_fac * troePr_den;')
+                self._write('dlogFdn = dlogFdcn_fac * troePr;')
+                self._write('dlogFdlogPr = dlogFdc;')
+                self._write('dlogFdT = dlogFcentdT*(troe - 0.67*dlogFdc - 1.27*dlogFdn) + dlogFdlogPr * dlogPrdT;')
+            else:
+                self._write('/* Lindemann form */')
+                self._write('F = 1.0;')
+                self._write('dlogFdlogPr = 0.0;')
+                self._write('dlogFdT = 0.0;')
+
+        # reverse
+        if not reaction.reversible:
+            self._write('/* rate of progress */')
+            if (not has_alpha) and (not isPD):
+                self._write('q = k_f*phi_f;')
+            else:
+                self._write('q_nocor = k_f*phi_f;')
+                if isPD:
+                    self._write('Corr = fPr * F;')
+                    self._write('q = Corr * q_nocor;')
+                else: 
+                    self._write('q = alpha * q_nocor;')
+
+            if isPD:
+                self._write('dlnCorrdT = ln10*(dlogfPrdT + dlogFdT);')
+                self._write('dqdT = %sdlnkfdT*k_f*phi_f + dlnCorrdT*q;' % Corr_s)
+            else:
+                self._write('dqdT = %sdlnkfdT*k_f*phi_f;' % Corr_s)
+        else:
+            self._write('/* reverse */')
+            self._write("phi_r = %s;" % self._sortedPhaseSpace(mechanism, sorted_products))
+            self._write('Kc = %s;' % self._sortedKc(mechanism, reaction))
+            self._write('k_r = k_f / Kc;')
+
+            dlnKcdT_s = 'invT * ('
+            terms = []
+            for symbol, coefficient in sorted(sorted_reactants,
+                                              key=lambda x: mechanism.species(x[0]).id):
+                k = mechanism.species(symbol).id
+                if coefficient == 1:
+                    terms.append('h_RT[%d]' % (k))
+                else:
+                    terms.append('%d*h_RT[%d]' % (coefficient, k))
+            dlnKcdT_s += '-(' + ' + '.join(terms) + ')'
+            terms = []
+            for symbol, coefficient in sorted(sorted_products,
+                                              key=lambda x: mechanism.species(x[0]).id):
+                k = mechanism.species(symbol).id
+                if coefficient == 1:
+                    terms.append('h_RT[%d]' % (k))
+                else:
+                    terms.append('%d*h_RT[%d]' % (coefficient, k))
+            dlnKcdT_s += ' + (' + ' + '.join(terms) + ')'
+            if sumNuk > 0:
+                dlnKcdT_s += ' - %d' % sumNuk
+            elif sumNuk < 0:
+                dlnKcdT_s += ' + %d' % (-sumNuk)
+            dlnKcdT_s += ')'
+            self._write('dlnKcdT = %s;' % dlnKcdT_s)
+
+            self._write('dkrdT = (dlnkfdT - dlnKcdT)*k_r;')
+
+            self._write('/* rate of progress */')
+            if (not has_alpha) and (not isPD):
+                self._write('q = k_f*phi_f - k_r*phi_r;')
+            else:
+                self._write('q_nocor = k_f*phi_f - k_r*phi_r;')
+                if isPD:
+                    self._write('Corr = fPr * F;')
+                    self._write('q = Corr * q_nocor;')
+                else: 
+                    self._write('q = alpha * q_nocor;')
+
+            if isPD:
+                self._write('dlnCorrdT = ln10*(dlogfPrdT + dlogFdT);')
+                self._write('dqdT = %s(dlnkfdT*k_f*phi_f - dkrdT*phi_r) + dlnCorrdT*q;' % Corr_s)
+            else:
+                self._write('dqdT = %s(dlnkfdT*k_f*phi_f - dkrdT*phi_r);' % Corr_s)
+
+        self._write("/* update wdot */")
+        for k in sorted(all_dict.keys()):
+            s, nu = all_dict[k]
+            if nu == 1:
+                self._write('wdot[%d] += q; /* %s */' % (k, s))
+            elif nu == -1:
+                self._write('wdot[%d] -= q; /* %s */' % (k, s))
+            elif nu > 0:
+                self._write('wdot[%d] += %.17g * q; /* %s */' % (k, nu, s))
+            elif nu < 0:
+                self._write('wdot[%d] -= %.17g * q; /* %s */' % (k, -nu, s))
+
+        if isPD:
+            self._write('/* for convenience */')
+            self._write('k_f *= Corr;')
+            if reaction.reversible:
+                self._write('k_r *= Corr;')
+        elif has_alpha:
+            self._write('/* for convenience */')
+            self._write('k_f *= alpha;')
+            if reaction.reversible:
+                self._write('k_r *= alpha;')
+            else:
+                self._write('k_r = 0.0;')
+
+        if isPD:
+            self._write('dcdc_fac = 0.0;')
+        #elif has_alpha:
+        #    self._write('dcdc_fac = q_nocor;')
+
+        def dqdc_simple_precond(dqdc_s, k):
+            if dqdc_s ==  "0":
+                dqdc_s = ''
+            if k in sorted(rea_dict.keys()):
+                dps = self._DphaseSpace(mechanism,sorted_reactants,rea_dict[k][0])
+                if dps == "1.0":
+                    dps_s = ''
+                else:
+                    dps_s = '*'+dps
+                dqdc_s += ' + k_f%s' % dps_s
+            if reaction.reversible:
+                if k in sorted(pro_dict.keys()):
+                    dps = self._DphaseSpace(mechanism,sorted_products,pro_dict[k][0])
+                    if dps == "1.0":
+                        dps_s = ''
+                    else:
+                        dps_s = '*'+dps
+                    dqdc_s += ' - k_r%s' % dps_s
+            return dqdc_s
+
+        if has_alpha or isPD:
+
+            #self._write('if (consP) {')
+            #self._indent()
+
+            #for k in range(nSpecies):
+            #    dqdc_s = self._Denhancement(mechanism,reaction,k,True)
+            #    if dqdc_s != "0":
+            #        if isPD:
+            #            if dqdc_s == "1":
+            #                dqdc_s ='dcdc_fac'
+            #            else:
+            #                dqdc_s +='*dcdc_fac'
+            #        elif has_alpha:
+            #            if dqdc_s == "1":
+            #                dqdc_s ='q_nocor'
+            #            else:
+            #                dqdc_s +='*q_nocor'
+
+            #    dqdc_s = dqdc_simple_precond(dqdc_s,k)
+            #    if dqdc_s:
+            #        symb_k = self.species[k].symbol
+            #        self._write('/* d()/d[%s] */' % symb_k)
+            #        self._write('dqdci = %s;' % (dqdc_s))
+            #        #
+            #        for m in sorted(all_dict.keys()):
+            #            if all_dict[m][1] != 0:
+            #                s1 = 'J[%d] += %.17g * dqdci;' % (k*(nSpecies+1)+m, all_dict[m][1])
+            #                s1 = s1.replace('+= 1 *', '+=').replace('+= -1 *', '-=')
+            #                s2 = '/* dwdot[%s]/d[%s] */' % (all_dict[m][0], symb_k)
+            #                self._write(s1.ljust(30) + s2)
+
+            #self._outdent()
+            #self._write('}')
+            #self._write('else {')
+            #self._indent()
+
+            for k in range(nSpecies):
+                dqdc_s = self._Denhancement(mechanism,reaction,k,False)
+                if dqdc_s != '0':
+                    if isPD:
+                        if dqdc_s == '1':
+                            dqdc_s ='dcdc_fac'
+                        elif isPD:
+                            dqdc_s +='*dcdc_fac'
+                    elif has_alpha:
+                        if dqdc_s == '1':
+                            dqdc_s ='q_nocor'
+                        else:
+                            dqdc_s +='*q_nocor'
+
+                dqdc_s = dqdc_simple_precond(dqdc_s,k)
+                if dqdc_s:
+                    self._write('dqdc[%d] = %s;' % (k,dqdc_s))
+
+            self._write('for (int k=0; k<%d; k++) {' % nSpecies)
+            self._indent()
+            for m in sorted(all_dict.keys()):
+                if all_dict[m][1] != 0:
+                    s1 = 'J[%d*k+%d] += %.17g * dqdc[k];' % ((nSpecies+1), m, all_dict[m][1])
+                    s1 = s1.replace('+= 1 *', '+=').replace('+= -1 *', '-=')
+                    self._write(s1)
+            #self._outdent()
+            #self._write('}')
+
+            self._outdent()
+            self._write('}')
+
+            for m in sorted(all_dict.keys()):
+                if all_dict[m][1] != 0:
+                    s1 = 'J[%d] += %.17g * dqdT; /* dwdot[%s]/dT */' % \
+                        (nSpecies*(nSpecies+1)+m, all_dict[m][1], all_dict[m][0])
+                    s1 = s1.replace('+= 1 *', '+=').replace('+= -1 *', '-=')
+                    self._write(s1)
+
+        else:
+
+            for k in range(nSpecies):
+                dqdc_s = dqdc_simple_precond('',k)
+                if dqdc_s:
+                    self._write('/* d()/d[%s] */' % all_dict[k][0])
+                    self._write('dqdci = %s;' % (dqdc_s))
+                    if reaction.reversible or k in rea_dict:
+                        for m in sorted(all_dict.keys()):
+                            if all_dict[m][1] != 0:
+                                s1 = 'J[%d] += %.17g * dqdci;' % (k*(nSpecies+1)+m, all_dict[m][1])
+                                s1 = s1.replace('+= 1 *', '+=').replace('+= -1 *', '-=')
+                                s2 = '/* dwdot[%s]/d[%s] */' % (all_dict[m][0], all_dict[k][0])
+                                self._write(s1.ljust(30) + s2)
+            self._write('/* d()/dT */')
+            for m in sorted(all_dict.keys()):
+                if all_dict[m][1] != 0:
+                    s1 = 'J[%d] += %.17g * dqdT;' % (nSpecies*(nSpecies+1)+m, all_dict[m][1])
+                    s1 = s1.replace('+= 1 *', '+=').replace('+= -1 *', '-=').replace('+= -1 *', '-=')
+                    s2 = '/* dwdot[%s]/dT */' % (all_dict[m][0])
+                    self._write(s1.ljust(30) + s2)
+
+        return
 
 
     def _ajac(self, mechanism):
