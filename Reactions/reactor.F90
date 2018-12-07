@@ -5,7 +5,7 @@ module reactor_module
   use eos_module
   use react_type_module
   use actual_reactor_module
-#ifdef USE_SDC_F
+#ifdef USE_SDC_FORTRAN
   use actual_sdc_module, only : actual_reactor_init_sdc, actual_reactor_close_sdc, actual_react_sdc
 #endif
 
@@ -31,6 +31,7 @@ contains
 
   end subroutine reactor_init
 
+#ifdef USE_SUNDIALS3x4x
   ! Call to CVODE: only in Fuego 
   subroutine reactor_init_cvode(imethod, iiter, iJac, iE, iDense) bind(C, name="reactor_init_cvode")
 
@@ -47,8 +48,9 @@ contains
     reactor_initialized = .true.
 
   end subroutine reactor_init_cvode
+#endif
 
-#ifdef USE_SDC_F
+#ifdef USE_SDC_FORTRAN
   ! Call to SDC: only in Fuego 
   subroutine reactor_init_sdc(nLobato, nsdcite) bind(C, name="reactor_init_sdc")
 
@@ -80,7 +82,7 @@ contains
   end subroutine reactor_close
 
 
-#ifdef USE_SDC_F
+#ifdef USE_SDC_FORTRAN
   subroutine reactor_close_sdc() bind(C, name="reactor_close_sdc")
 
     implicit none
@@ -131,6 +133,7 @@ contains
 
   end function react
 
+#ifdef USE_SUNDIALS3x4x
   ! Call to CVODE. Only with Fuego
   function react_cvode(react_state_in, react_state_out, dt_react, time)
 
@@ -159,8 +162,9 @@ contains
     endif
 
   end function react_cvode
+#endif
 
-#ifdef USE_SDC_F
+#ifdef USE_SDC_FORTRAN
   ! Call to SDC. Only with Fuego
   function react_sdc(react_state_in, react_state_out, dt_react, time)
 

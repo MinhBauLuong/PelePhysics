@@ -3,3 +3,6 @@ F90EXE_sources += react_type.F90
 ifeq ($(USE_DVODE), TRUE)
     F90EXE_sources += reactor.F90
 endif
+ifeq ($(USE_FORTRAN_CVODE), TRUE)
+    F90EXE_sources += reactor.F90
+endif

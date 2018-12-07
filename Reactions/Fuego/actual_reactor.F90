@@ -77,6 +77,7 @@ contains
 
   end subroutine actual_reactor_init
 
+#ifdef USE_SUNDIALS3x4x
   !CVODE VERSION
   subroutine actual_reactor_init_cvode(imethod, iiter, iJac, iE_in, iDense_in)
 
@@ -256,6 +257,7 @@ contains
     !CALL t_init%stop
 
   end subroutine actual_reactor_init_cvode
+#endif
 
 
 !*** REACTION ROUTINES ***!
@@ -465,7 +467,6 @@ contains
        call amrex_error('vode failed')
 
     end if
-
   end function actual_react
 
   ! Original DVODE version
@@ -545,7 +546,7 @@ contains
 
   end subroutine f_jac
 
-
+#ifdef USE_SUNDIALS3x4x
   !CVODE VERSION
   function actual_react_cvode(react_state_in, react_state_out, dt_react, time)
     
@@ -713,7 +714,9 @@ contains
     actual_react_cvode % cost_value = nfevals ! number of f evaluations
 
   end function actual_react_cvode
+#endif
 
+#ifdef USE_SUNDIALS3x4x
   !CVODE VERSION
   integer(c_int)  function F_RHS_F(time, sunvec_y_in, sunvec_f_in, userdata) &
                   result(ierr) bind(C,name='F_RHS_F')
@@ -805,7 +808,9 @@ contains
     ierr = 0
     return
   end function F_RHS_F
+#endif
  
+#ifdef USE_SUNDIALS3x4x
   !CVODE VERSION
   integer(c_int) function f_jac_cvode(tn, sunvec_y_in, sunvec_f_in, sunMat_J, &
            user_data, tmp1, tmp2, tmp3) result(ierr) bind(C,name='f_jac_cvode')
@@ -902,7 +907,9 @@ contains
         !CALL t_AJac%stop
 
   end function f_jac_cvode
+#endif
 
+#ifdef USE_SUNDIALS3x4x
   !CVODE VERSION
   integer(c_int) function f_jac_cvode_HP_Fuego(tn, sunvec_y_in, sunvec_f_in, sunMat_J, &
            user_data, tmp1, tmp2, tmp3) result(ierr) bind(C,name='f_jac_cvode_HP_Fuego')
@@ -1005,7 +1012,9 @@ contains
         !CALL t_AJac%stop
 
   end function f_jac_cvode_HP_Fuego
+#endif
 
+#ifdef USE_SUNDIALS3x4x
 #ifdef USE_PYJAC 
   integer(c_int) function f_jac_cvode_HP_PyJac(tn, sunvec_y_in, sunvec_f_in, sunMat_J, &
            user_data, tmp1, tmp2, tmp3) result(ierr) bind(C,name='f_jac_cvode_HP_PyJac')
@@ -1089,7 +1098,9 @@ contains
 
   end function f_jac_cvode_HP_PyJac
 #endif
+#endif
 
+#ifdef USE_SUNDIALS3x4x
 #ifdef USE_KLU 
   !CVODE VERSION
   integer(c_int) function f_jac_cvode_KLU(tn, sunvec_y_in, sunvec_f_in, sunmat_J, &
@@ -1198,7 +1209,9 @@ contains
 
   end function f_jac_cvode_KLU
 #endif
+#endif
 
+#ifdef USE_SUNDIALS3x4x
 #ifdef USE_KLU 
   !CVODE VERSION
   integer(c_int) function f_jac_cvode_HP_KLU(tn, sunvec_y_in, sunvec_f_in, sunmat_J, &
@@ -1285,6 +1298,7 @@ contains
 
   end function f_jac_cvode_HP_KLU
 #endif 
+#endif
 
 
   !integer(c_int) function Precond(tn, sunvec_y_in, sunvec_f_in, jOK, &

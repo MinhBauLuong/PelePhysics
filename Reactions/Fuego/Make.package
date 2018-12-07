@@ -3,12 +3,17 @@ ifeq ($(USE_DVODE), TRUE)
     F90EXE_sources += actual_reactor.F90
     f90EXE_sources += mod_timers.f90
 else
-    ifeq ($(USE_CUDA_CVODE), TRUE)
-        CEXE_headers +=actual_Creactor_GPU.h  
-        CEXE_sources+=actual_Creactor_GPU.cpp
+    ifeq ($(USE_FORTRAN_CVODE), TRUE) 
+        F90EXE_sources += actual_reactor.F90
+        f90EXE_sources += mod_timers.f90
     else
-        CEXE_headers +=actual_Creactor.h  
-        CEXE_sources+=actual_Creactor.cpp
+        ifeq ($(USE_CUDA_CVODE), TRUE)
+            CEXE_headers +=actual_Creactor_GPU.h  
+            CEXE_sources+=actual_Creactor_GPU.cpp
+        else
+            CEXE_headers +=actual_Creactor.h  
+            CEXE_sources+=actual_Creactor.cpp
+        endif
     endif
 endif
 
