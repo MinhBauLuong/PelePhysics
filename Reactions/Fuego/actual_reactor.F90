@@ -161,6 +161,7 @@ contains
         print *,"--> ITERATIVE solver "
         ierr = FCVIter(CVmem, neq, 0)
     else
+#ifdef USE_KLU 
         if (iE == 5) then
             call amrex_abort("SPARSE solver not implemented for HP reactors")
         else
@@ -181,6 +182,9 @@ contains
             ! iJac = 1
             allocate(Jmat_KLU(neq,neq))
         end if
+#else
+        call amrex_abort("--> SPARSE OPTION: Need to enable KLU via USE_KLU")
+#endif
     end if
 
     ! set Jacobian routine
@@ -205,6 +209,7 @@ contains
             call amrex_abort("--> iterative solver: no J, not preconditioned")
             !ierr = FCVSpilsSetJacTimes(CVmem, NULL, NULL);
 	    !ierr = FCVSpilsSetPreconditioner(CVmem, Precond, PSolve);
+#ifdef USE_KLU 
         else 
             print *,"   -- always with Analytical J"
             if (iE == 1) then
@@ -217,6 +222,7 @@ contains
                 ierr = FCVDlsSetJacFn(CVmem, c_funloc(f_jac_cvode_HP_KLU))
                 if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVDlsSetDenseJacFn()")
             end if
+#endif
         end if
     else
         print *,"   -- without Analytical J"
@@ -1084,6 +1090,7 @@ contains
   end function f_jac_cvode_HP_PyJac
 #endif
 
+#ifdef USE_KLU 
   !CVODE VERSION
   integer(c_int) function f_jac_cvode_KLU(tn, sunvec_y_in, sunvec_f_in, sunmat_J, &
            user_data, tmp1, tmp2, tmp3) result(ierr) bind(C,name='f_jac_cvode_KLU')
@@ -1190,7 +1197,9 @@ contains
         !CALL t_AJac%stop
 
   end function f_jac_cvode_KLU
+#endif
 
+#ifdef USE_KLU 
   !CVODE VERSION
   integer(c_int) function f_jac_cvode_HP_KLU(tn, sunvec_y_in, sunvec_f_in, sunmat_J, &
            user_data, tmp1, tmp2, tmp3) result(ierr) bind(C,name='f_jac_cvode_HP_KLU')
@@ -1275,6 +1284,7 @@ contains
         !CALL t_AJac%stop
 
   end function f_jac_cvode_HP_KLU
+#endif 
 
 
   !integer(c_int) function Precond(tn, sunvec_y_in, sunvec_f_in, jOK, &
