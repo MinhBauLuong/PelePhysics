@@ -50,7 +50,6 @@ contains
     use_ajac = .false.
     save_ajac = .false.
     always_new_J = .false.
-    always_new_J = .true.
     stiff = .true.
     rtol = 1.d-10
     atol = 1.d-10
