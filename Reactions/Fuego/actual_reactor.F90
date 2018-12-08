@@ -681,9 +681,9 @@ contains
 
     Y_div_W(:)   = eos_state % massfrac(:) / molecular_weight(:)
     press_recalc = eos_state % rho * eos_state % T * 8.31451e+07 * sum(Y_div_W(:))
-    write(*,*) "e,h,p,rho,p_recalc ? ", eos_state % e, eos_state % h, eos_state % p, react_state_out % rho, press_recalc
+    !write(*,*) "e,h,p,rho,p_recalc ? ", eos_state % e, eos_state % h, eos_state % p, react_state_out % rho, press_recalc
 
-    verbose = 2
+    verbose = 0
     if (verbose .ge. 1) then
        write(6,*) '......cvode done:'
        write(6,*) ' time, T reached : ', time_out, eos_state % T
