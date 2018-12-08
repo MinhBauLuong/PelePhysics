@@ -15,16 +15,17 @@ module actual_reactor_module
   integer,private :: iloc, jloc, kloc, iE, iDense
   type (eos_t) :: eos_state
   !$omp threadprivate(vodeVec,cdot,rhoydot_ext,ydot_ext,rhoedot_ext,rhoe_init,time_init,time_out,rhohdot_ext,rhoh_init,hdot_ext,h_init,time_old,iloc,jloc,kloc,eos_state)
+#ifdef USE_SUNDIALS3x4x
   ! CVODE STUFF
   integer                              :: iwrk
   real(amrex_real)                     :: rwrk
   real(c_double), pointer              :: yvec(:)
   type(c_ptr)                          :: sunvec_y
   type(c_ptr)                          :: CVmem
-  real(amrex_real)                     :: rhoInit
   real(c_double), allocatable          :: Jmat_KLU(:,:)
   integer(c_long)                      :: NNZ
   integer, allocatable                 :: colPtrs(:), rowVals(:), Jdata(:)
+#endif
 
 contains
 
@@ -44,10 +45,11 @@ contains
     neq = nspec + 1
     verbose = 0
     itol = 1
-    order = 5
+    order = 2
     maxstep = 5000
     use_ajac = .false.
     save_ajac = .false.
+    always_new_J = .false.
     always_new_J = .true.
     stiff = .true.
     rtol = 1.d-10
@@ -415,8 +417,8 @@ contains
        react_state_out % h = eos_state % h
        react_state_out % p = eos_state % p
 
-       Y_div_W(:)   = eos_state % massfrac(:) / molecular_weight(:)
-       press_recalc = eos_state % rho * eos_state % T * 8.31451e+07 * sum(Y_div_W(:))
+       !Y_div_W(:)   = eos_state % massfrac(:) / molecular_weight(:)
+       !press_recalc = eos_state % rho * eos_state % T * 8.31451e+07 * sum(Y_div_W(:))
        !write(*,*) "e,h,p,rho,p_recalc ? ", eos_state % e, eos_state % h, eos_state % p, react_state_out % rho, press_recalc
 
     else
@@ -1374,10 +1376,12 @@ contains
     if (allocated(cdot)) deallocate(cdot)
     if (allocated(rhoydot_ext)) deallocate(rhoydot_ext)
     if (allocated(ydot_ext)) deallocate(ydot_ext)
+#ifdef USE_SUNDIALS3x4x
     if (associated(yvec)) nullify(yvec)
     if (allocated(Jdata)) deallocate(Jdata)
     if (allocated(rowVals)) deallocate(rowVals)
     if (allocated(colPtrs)) deallocate(colPtrs)
+#endif
 
     call destroy(eos_state)
    
