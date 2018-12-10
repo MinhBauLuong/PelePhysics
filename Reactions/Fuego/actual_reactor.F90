@@ -46,7 +46,7 @@ contains
     verbose = 0
     itol = 1
     order = 2
-    maxstep = 5000
+    maxstep = 10000
     use_ajac = .false.
     save_ajac = .false.
     always_new_J = .false.
@@ -380,7 +380,8 @@ contains
            rhoInv                        = 1.d0 / eos_state % rho
            eos_state % massfrac(1:nspec) = vodeVec(1:nspec) * rhoInv
            eos_state % T                 = vodeVec(neq)
-           eos_state % e                 = (rhoe_init  +  dt_react*rhoedot_ext) * rhoInv
+           !eos_state % e                 = (rhoe_init  +  dt_react*rhoedot_ext) * rhoInv
+           eos_state % e                 = (rhoe_init  +  dt_react*rhoedot_ext) /eos_state % rho
            call eos_re(eos_state)
            react_state_out % rhoY(:)     = vodeVec(1:nspec) 
            react_state_out % rho         = sum(vodeVec(1:nspec))
