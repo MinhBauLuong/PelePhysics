@@ -76,6 +76,7 @@ extern "C" {
     void ckindx_(int * iwrk, double * rwrk, int * mm, int * kk, int * ii, int * nfit); 
     void ckubms_(double * t, double * y, int * iwrk, double * rwrk, double * ubms);
     void ckhbms_(double * t, double * y, int * iwrk, double * rwrk, double * hbms);
+    void sparsity_info_( int * njdata, int * consp);
 
 }
 /**********************************/

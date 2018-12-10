@@ -123,6 +123,10 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	    flag = CVSpilsSetLinearSolver(cvode_mem, LS);
 	    if(check_flag(&flag, "CVSpilsSetLinearSolver", 1)) return(1);
 	} else {
+	    int nJdata;
+	    int HP = 0;
+	    sparsity_info_(&nJdata, &HP);
+            printf("--> SPARSE solver -- non zero entries %d represents %f %% sparsity pattern.", nJdata, nJdata/float((NEQ+1) * (NEQ+1)) *100.0);
 	    amrex::Abort("\n--> Direct Sparse / Iterative Solvers not yet implemented ...\n");
 	}
 
