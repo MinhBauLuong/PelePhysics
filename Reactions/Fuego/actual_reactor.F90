@@ -238,8 +238,8 @@ contains
     if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVodeSetMaxNumSteps()")
 
     ! Set max order
-    !ierr = FCVodeSetMaxOrd(CVmem, 2)
-    !if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVodeSetMaxOrd()")
+    ierr = FCVodeSetMaxOrd(CVmem, 2)
+    if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVodeSetMaxOrd()")
 
     !ierr = FCVodeSetStabLimDet(CVmem, 0)
 
@@ -644,7 +644,8 @@ contains
         rhoInv          = 1.d0 / eos_state % rho
         eos_state % T   = yvec(neq)
         eos_state % massfrac(1:nspec)   = yvec(1:nspec) * rhoInv
-        eos_state % e                   = (rhoe_init  +  dt_react*rhoedot_ext) * rhoInv
+        !eos_state % e                   = (rhoe_init  +  dt_react*rhoedot_ext) * rhoInv
+        eos_state % e                   = (rhoe_init  +  dt_react*rhoedot_ext) /eos_state % rho
         call eos_re(eos_state)
         react_state_out % rhoY(:)       = yvec(1:nspec)
         react_state_out % rho           = sum(yvec(1:nspec))
