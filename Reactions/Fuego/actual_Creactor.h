@@ -1,6 +1,7 @@
 #include <math.h>
 #include <iostream>
 #include <cstring>
+#include <chrono>
 
 
 #include <cvode/cvode.h>               /* prototypes for CVODE fcts., consts.  */
@@ -14,16 +15,33 @@
 #include <sundials/sundials_math.h>
 #include <cvode/cvode_impl.h>
 
+#ifdef USE_KLU 
+#include <sunlinsol/sunlinsol_klu.h>
+#include <sundials/sundials_sparse.h>
+#include <sunmatrix/sunmatrix_sparse.h>
+#endif
+
 //#include <nvector/nvector_cuda.h>
 
 #include <AMReX_Print.H>
-
 
 /**********************************/
 
 typedef struct {
   realtype **P[1][1], **Jbd[1][1];
   sunindextype *pivot[1][1];
+#ifdef USE_KLU 
+  //SlsMat PS[1][1];
+  SUNMatrix PS[1][1];
+  realtype *Jdata = NULL;
+  //sunindextype *rowVals = NULL;
+  //sunindextype *colPtrs = NULL;
+  int *rowVals = NULL;
+  int *colPtrs = NULL;
+  klu_common Common;
+  klu_symbolic *Symbolic;
+  klu_numeric *Numeric;
+#endif
 } *UserData;
 
 /* Functions Called by the Solver */
@@ -38,6 +56,13 @@ static int jtv(N_Vector v, N_Vector Jv, realtype t, N_Vector u,
 static int PSolve(realtype tn, N_Vector u, N_Vector fu, N_Vector r, 
 		N_Vector z, realtype gamma, realtype delta, int lr, void *user_data);
 
+#ifdef USE_KLU 
+static int PSolve_sparse(realtype tn, N_Vector u, N_Vector fu, N_Vector r, 
+		N_Vector z, realtype gamma, realtype delta, int lr, void *user_data);
+static int Precond_sparse(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
+		booleantype *jcurPtr, realtype gamma, void *user_data);
+#endif
+
 static int Precond(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
 		booleantype *jcurPtr, realtype gamma, void *user_data);
 
@@ -48,13 +73,13 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 //int actual_cReact(realtype *rY_in, realtype *P_in, realtype *dt_react, realtype *time);
 int actual_cReact(realtype *rY_in, realtype *rY_src_in, 
 		realtype *rX_in, realtype *rX_src_in, 
-		realtype *P_in, realtype *dt_react, realtype *time);
+		realtype *P_in, realtype *dt_react, realtype *time, int *Init);
 
 void extern_cFree();
 
 static int check_flag(void *flagvalue, const char *funcname, int opt);
 
-static void PrintFinalStats(void *cvode_mem);
+static void PrintFinalStats(void *cvode_mem, realtype Temp);
 
 static UserData AllocUserData(void);
 
@@ -77,6 +102,8 @@ extern "C" {
     void ckubms_(double * t, double * y, int * iwrk, double * rwrk, double * ubms);
     void ckhbms_(double * t, double * y, int * iwrk, double * rwrk, double * hbms);
     void sparsity_info_( int * njdata, int * consp);
+    //void sparsity_preproc_( long int * rowVals, long int * colPtrs, int * consP);
+    void sparsity_preproc_( int * rowVals, int * colPtrs, int * consP);
 
 }
 /**********************************/
