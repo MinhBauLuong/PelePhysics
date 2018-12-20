@@ -169,13 +169,13 @@ contains
              Jac(i,j) = Jac(i,j) * mwt(i) * invmwt(j)
           end do
           i=Nspec+1
-          Jac(i,j) = Jac(i,j) * invmwt(j) * rho 
+          Jac(i,j) = Jac(i,j) * invmwt(j) !* rho 
        end do
 
        j = Nspec+1
        rho_inv = 1/rho
        do i=1,Nspec
-          Jac(i,j) = Jac(i,j) * mwt(i) * rho_inv
+          Jac(i,j) = Jac(i,j) * mwt(i) !* rho_inv
        end do
 
        !     we are computing the Jacobian of the function (I - dt w)
