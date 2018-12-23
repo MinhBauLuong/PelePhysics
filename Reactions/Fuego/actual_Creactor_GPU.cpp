@@ -17,6 +17,7 @@
   double *rhohsrc_ext = NULL;
   double *rYsrc = NULL;
   double *dt_save;
+  double temp_old = 0;
   //UserData user_data;
 
 /**********************************/
@@ -80,7 +81,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	if (check_flag(&flag, "CVodeInit", 1)) return(1);
 	
 	/* Definition of tolerances: one for each species */
-	reltol = 1.0e-05;
+	reltol = 1.0e-10;
         atol  = N_VNew_Cuda(neq_tot);
 	ratol = N_VGetHostArrayPointer_Cuda(atol);
         for (int i=0; i<neq_tot; i++) {
@@ -129,8 +130,13 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	    amrex::Abort("\n--> With Analytical J: not yet implemented");
 	}
 
+        /* Set the max number of time steps */ 
 	flag = CVodeSetMaxNumSteps(cvode_mem, 10000);
 	if(check_flag(&flag, "CVodeSetMaxNumSteps", 1)) return(1);
+
+        /* Set the max order */
+        flag = CVodeSetMaxOrd(cvode_mem, 2);
+        if(check_flag(&flag, "CVodeSetMaxOrd", 1)) return(1);
 
 	/* Define vectors to be used later in creact */
 	// GPU stuff: might want to rethink this and put everything in userdata
@@ -157,7 +163,8 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 /* Main routine for external looping */
 int actual_cReact(realtype *rY_in, realtype *rY_src_in, 
 		realtype *rX_in, realtype *rX_src_in,
-		realtype *P_in, realtype *dt_react, realtype *time){
+		realtype *P_in, 
+                realtype *dt_react, realtype *time, int *Init) {
 
 	realtype time_init, time_out ;
 	int flag;
@@ -184,7 +191,18 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	}
 
 	/* Call CVODE: ReInit for convergence */
-	CVodeReInit(cvode_mem, time_init, y);
+	if (*Init == 1) {
+	    CVodeReInit(cvode_mem, time_init, y);
+	} else {
+	    temp_old = abs(rY_in[NEQ] - temp_old);
+            if (temp_old > 50.0) {
+	        printf("ReInit delta_T = %f \n", temp_old);
+	        CVodeReInit(cvode_mem, time_init, y);
+	    } else {
+	        printf("ReInit Partial delta_T = %f \n", temp_old);
+	        CVodeReInitPartial(cvode_mem, time_init, y);
+	    }
+        }
 	flag = CVode(cvode_mem, time_out, y, &time_init, CV_NORMAL);
 	if (check_flag(&flag, "CVode", 1)) return(1);
 
@@ -192,6 +210,10 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	cudaMemcpy(rY_in, yvec_d, ((NEQ+1)*NCELLS)*sizeof(realtype), cudaMemcpyDeviceToHost);
 	for  (int i = 0; i < NCELLS; i++) {
             rX_in[i] = rX_in[i] + (*dt_react) * rX_src_in[i];
+	}
+
+	if (*Init != 1) {
+	    temp_old = rY_in[NEQ];
 	}
 
 	/* tests HP PUT THIS ON DEVICE ! */
@@ -430,10 +452,10 @@ __global__ void fKernelJacCSR(realtype t, void *user_data,
         /* MW CGS */
         molecularWeight_d(molecular_weight);
         /* rho */ 
-        realtype rho = 0.0;
-        for (int i = 0; i < udata->neqs_per_cell[0]; i++){
-            rho = rho + actual_y[i];
-        }
+        //realtype rho = 0.0;
+        //for (int i = 0; i < udata->neqs_per_cell[0]; i++){
+        //    rho = rho + actual_y[i];
+        //}
         /* temp */
         temp = actual_y[udata->neqs_per_cell[0]];
         /* Yks, C CGS*/
@@ -458,10 +480,10 @@ __global__ void fKernelJacCSR(realtype t, void *user_data,
 	    for (int i = 0; i < udata->neqs_per_cell[0]; i++){
                 csr_jac_cell[k*(udata->neqs_per_cell[0]+1)+i] = Jmat[i*(udata->neqs_per_cell[0]+1)+k] * molecular_weight[k] / molecular_weight[i];
 	    }
-	    csr_jac_cell[k*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] = Jmat[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+k] * molecular_weight[k] / rho; 
+	    csr_jac_cell[k*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] = Jmat[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+k] * molecular_weight[k]; 
         }
         for (int i = 0; i < udata->neqs_per_cell[0]; i++){
-            csr_jac_cell[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+i] = Jmat[i*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] * rho / molecular_weight[i]; 
+            csr_jac_cell[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+i] = Jmat[i*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] / molecular_weight[i]; 
         }
         printf("J arrive jusque la 3 ...\n");
     }
