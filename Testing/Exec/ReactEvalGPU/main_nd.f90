@@ -7,12 +7,12 @@ module main_module
   real(amrex_real), dimension(:,:), allocatable :: Y_in, Y_forcing_in
   real(amrex_real), dimension(:), allocatable :: temp
   real(amrex_real) :: pressure
-  integer :: nlin
+  integer :: nlin, cvode_iE
 
 contains
 
   !--------!
-  subroutine extern_init(name,namlen) &
+  subroutine extern_init(name,namlen, cvode_iE_in) &
                     bind(C, name="extern_init")
 
     use, intrinsic :: iso_c_binding
@@ -22,9 +22,12 @@ contains
 
     integer :: namlen
     integer :: name(namlen)
+    integer(c_int), intent(in) :: cvode_iE_in
 
     real (kind=dp_t) :: small_temp = 1.d-200
     real (kind=dp_t) :: small_dens = 1.d-200
+
+    cvode_iE = cvode_iE_in
 
     ! initialize the external runtime parameters in
     ! extern_probin_module
@@ -135,14 +138,16 @@ contains
              !rhoY, T
              rhoY(i,j,k,1:nspec) = eos_state % massfrac * eos_state % rho
              rhoY(i,j,k,nspec+1) = eos_state % T
-             !print *, "rho ", eos_state % rho
-             !print *, "T ", eos_state % T
              !rhoY src ext
              rhoYs(i,j,k,1:nspec) = 0.0 
-             ! all in e
-             !rhoE(i,j,k,1) = eos_state % e * eos_state % rho
-             rhoE(i,j,k,1) = eos_state % h * eos_state % rho
-             !rhoE src ext
+             if (cvode_iE == 1) then
+                 ! all in e
+                 rhoE(i,j,k,1) = eos_state % e * eos_state % rho
+             else
+                 ! all in h
+                 rhoE(i,j,k,1) = eos_state % h * eos_state % rho
+             end if
+             !rhoE/H src ext
              rhoEs(i,j,k,1) = 0.0
              plo                 = pressure
 
@@ -201,8 +206,8 @@ contains
     ! read useful lines
     DO i = 1, nlin
       read(49,*) y, dum, y_velocity, density, dum, dum, temp(i), dum, dum, dum, dum, Y_in(i,:), dum, dum, dum, dum, dum, dum, Y_forcing_in(i,:)
-      !print *, sum(Y_in(i,:))
-      print *, Y_forcing_in(i,nspec+1)*10.0
+      print *, sum(Y_in(i,:))
+      !print *, Y_forcing_in(i,nspec+1)*10.0
     END DO
     ! Todo
     pressure = 1013250.d0
@@ -212,8 +217,8 @@ contains
     ! Conversion MKS to CGS for PelePhys
     !! nspec + 1 is energy which here is enthalpy !!
     DO i = 1, nlin
-      Y_forcing_in(i,1:nspec) = Y_forcing_in(i,1:nspec)*1.d-3
-      Y_forcing_in(i,nspec+1) = Y_forcing_in(i,nspec+1)*10.0
+      Y_forcing_in(i,1:nspec) = 0.0 !Y_forcing_in(i,1:nspec)*1.d-3
+      Y_forcing_in(i,nspec+1) = 0.0 !Y_forcing_in(i,nspec+1)*10.0
     END DO
     plo = pressure 
   end subroutine read_data_from_txt
@@ -262,8 +267,8 @@ contains
              eos_state % T          = temp(i+1)
              eos_state % massfrac(:)     = Y_in(i+1,:)
              !eos_state % massfrac(nspec) = ONE - sum(Y_in(i+1,1:nspec-1))
-             print *,i,j,k
-             print *,eos_state % T  
+             !print *,i,j,k
+             !print *,eos_state % T  
 
              call eos_tp(eos_state)
 
@@ -273,7 +278,8 @@ contains
              ! rhoY_src(:nspec) = rhoForcingSpecs
              rhoY_src(i,j,k,1:nspec) = Y_forcing_in(i+1,1:nspec)
              ! all in h
-             rhoE(i,j,k,1) = eos_state % h * eos_state % rho
+             !rhoE(i,j,k,1) = eos_state % h * eos_state % rho
+             rhoE(i,j,k,1) = eos_state % e * eos_state % rho
              !rhoE src ext
              rhoEs(i,j,k,1) = Y_forcing_in(i+1,nspec+1)
 

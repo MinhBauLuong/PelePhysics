@@ -130,17 +130,13 @@ int main (int argc,
     
     amrex::Print() << std::endl;
 
-#ifdef USE_CUDA_CVODE   
-    amrex::Print() << "Using GPU version";
-#endif
-
 
     // take care of probin init to initialize problem
     int probin_file_length = probin_file.length();
     std::vector<int> probin_file_name(probin_file_length);
     for (int i = 0; i < probin_file_length; i++)
 	    probin_file_name[i] = probin_file[i];
-    extern_init(&(probin_file_name[0]),&probin_file_length);
+    extern_init(&(probin_file_name[0]),&probin_file_length, &cvode_iE);
     extern_cInit(&cvode_meth, &cvode_itmeth,&cvode_iJac, &cvode_iE, &cvode_iDense, &max_grid_size);
 
 
@@ -277,6 +273,9 @@ int main (int argc,
 #pragma omp parallel
 #endif
     /* Advance the MF by dt*ndt */
+    std::ofstream myfile;
+    myfile.open ("fort.txt");
+    myfile.precision(12);
     int count = 1;
     int count_box;
     for ( MFIter mfi(mf, do_tiling); mfi.isValid(); ++mfi )
@@ -314,16 +313,24 @@ int main (int argc,
 	Real time_tmp, dt_incr, dt_tmp;
 	dt_incr =  dt;
 	time_tmp = time;
-	printf("#TIME TEMPERATURE Ydot[OH] \n");
+	int reInit = 1;
+	//printf("#TIME TEMPERATURE \n");
+	myfile << "#TIME TEMPERATURE P Yks \n";
 	for (int i = 0; i < ndt; ++i) {
 		dt_tmp = (i+1)* dt_incr;
 		actual_cReact(tmp_vect, tmp_src_vect, 
 				tmp_vect_energy, tmp_src_vect_energy,
-				&plo, &dt_incr, &time);
+				&plo, &dt_incr, &time_tmp, &reInit);
+				//&plo, &dt_incr, &time, &reInit);
 		time_tmp = dt_tmp;
                 //printf("--> at time : %2.8e, ",time_tmp);
 		//printf(" out state (T) is %4.4f and Ysrc(OH) is \n", tmp_vect[Ncomp], plo);
-		printf("%2.8e %4.4f %2.8e \n", time_tmp, tmp_vect[ Ncomp], plo);
+		//printf("%2.8e %4.4f \n", time_tmp, tmp_vect[Ncomp]);
+		myfile <<  time_tmp << " " << tmp_vect[Ncomp] << " " << plo <<" ";
+		for (int ij = 0; ij < Ncomp; ++ij) {
+			myfile << tmp_vect[ij]<< " ";
+		}
+		myfile <<"\n";
 	}
         count = count+1;
 
@@ -336,6 +343,7 @@ int main (int argc,
 		count_box = count_box + 1;
 	}
     }
+    myfile.close();
 
     stop_time = ParallelDescriptor::second();
     ParallelDescriptor::ReduceRealMax(stop_time,IOProc);
@@ -351,6 +359,7 @@ int main (int argc,
       //PlotFileFromMF(temperature,outfile);
     }
 
+    //printf("THER");
     extern_close();
     extern_cFree();
     amrex::Finalize();

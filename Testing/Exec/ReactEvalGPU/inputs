@@ -1,9 +1,9 @@
 probin_file = probin
-n_cell = 1
+n_cell = 256
 max_grid_size = 1
 
 dt = 1.e-07
-ndt = 100
+ndt = 300
 
 # 1 = Adams (non-stiff); 2 = BDF (stiff)
 cvode_meth = 2
@@ -15,10 +15,10 @@ cvode_itmeth = 2
 cvode_iJac = 0
 
 # 1=full e, 2=full h
-cvode_iE = 2
+cvode_iE = 1
 
 # choose sparse or dense
-cvode_iDense = 1
+cvode_iDense = 99
 
 # 1=cvode
 ivode = 1
@@ -29,4 +29,4 @@ do_tiling = 0
 
 amr.plot_file       = plt
 #txtfile_in          = out_dodWand_P1_T400_R0p8.txt
-#txtfile_in          = 1D_y_7530_DOD
+txtfile_in          = 1D_y_7530_DOD

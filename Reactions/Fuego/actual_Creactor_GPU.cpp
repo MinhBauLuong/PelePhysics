@@ -17,7 +17,7 @@
   double *rhohsrc_ext = NULL;
   double *rYsrc = NULL;
   double *dt_save;
-  double temp_old = 0;
+  double *temp_old = NULL;
   //UserData user_data;
 
 /**********************************/
@@ -34,6 +34,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	int iwrk;
 	int mm, ii, nfit;
 
+	//ckindx_(&iwrk,&rwrk,&mm,&NEQ,&ii,&nfit);
 	ckindx_(&iwrk,&rwrk,&mm,&NEQ,&ii,&nfit);
         if (iverbose > 1) {
 	    printf("Nb of spec is %d \n", NEQ);
@@ -149,6 +150,11 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	    cudaMallocManaged(&rhohsrc_ext, NCELLS*sizeof(double));
 	}
 	cudaMallocManaged(&rYsrc, (NCELLS*NEQ)*sizeof(double));
+	// ReInit stuff
+	cudaMallocManaged(&temp_old, NCELLS*sizeof(double));
+	for  (int i = 0; i < NCELLS; i++) {
+		temp_old[i] = 0.0;
+	}
 
 	N_VDestroy(atol);          /* Free the atol vector */
 
@@ -169,7 +175,7 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	realtype time_init, time_out ;
 	int flag;
 
-	cudaError_t cuda_status = cudaSuccess;
+	//cudaError_t cuda_status = cudaSuccess;
 
         time_init = *time;
 	time_out  = *time + *dt_react;
@@ -194,12 +200,21 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	if (*Init == 1) {
 	    CVodeReInit(cvode_mem, time_init, y);
 	} else {
-	    temp_old = abs(rY_in[NEQ] - temp_old);
-            if (temp_old > 50.0) {
-	        printf("ReInit delta_T = %f \n", temp_old);
+	    // Really bad here when pseveral cells are packed together
+	    double delta_T_max = 0.0;
+	    int offset;
+	    for  (int tid = 0; tid < NCELLS; tid++) {
+		offset = tid * (NEQ + 1);
+	        temp_old[tid] = abs(rY_in[offset + NEQ] - temp_old[tid]);
+		if (delta_T_max < temp_old[tid]) {
+		    delta_T_max = temp_old[tid];
+		}
+	    }
+            if (delta_T_max > 50.0) {
+	        printf("ReInit delta_T = %f \n", delta_T_max);
 	        CVodeReInit(cvode_mem, time_init, y);
 	    } else {
-	        printf("ReInit Partial delta_T = %f \n", temp_old);
+	        printf("ReInit Partial delta_T = %f \n", delta_T_max);
 	        CVodeReInitPartial(cvode_mem, time_init, y);
 	    }
         }
@@ -213,32 +228,36 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	}
 
 	if (*Init != 1) {
-	    temp_old = rY_in[NEQ];
+	    int offset;
+	    for  (int tid = 0; tid < NCELLS; tid++) {
+		offset = tid * (NEQ + 1);
+	        temp_old[tid] = rY_in[offset + NEQ];
+	    }
 	}
 
 	/* tests HP PUT THIS ON DEVICE ! */
-        for (int tid = 0; tid < NCELLS; tid ++) {
-	    double rhov, energy, temp;
-	    double MF[NEQ];
-            int * iwrk;
-            double *  rwrk;
-	    int  lierr;
-	    rhov = 0.0;
-            int offset = tid * (NEQ + 1); 
-            for (int k = 0; k < NEQ; k ++) {
-		rhov =  rhov + rY_in[offset + k];
-	    }
-            for (int k = 0; k < NEQ; k ++) {
-		MF[k] = rY_in[offset + k]/rhov;
-	    }
-	    energy = rX_in[tid]/rhov ;
-	    if (iE_Creact == 1) { 
-	        get_t_given_ey_(&energy, MF, iwrk, rwrk, &temp, &lierr);
-	    } else {
-	        get_t_given_hy_(&energy, MF, iwrk, rwrk, &temp, &lierr);
-	    }
-	    rY_in[offset + NEQ] =  temp;
-	}
+        //for (int tid = 0; tid < NCELLS; tid ++) {
+	//    double rhov, energy, temp;
+	//    double MF[NEQ];
+        //    int * iwrk;
+        //    double *  rwrk;
+	//    int  lierr;
+	//    rhov = 0.0;
+        //    int offset = tid * (NEQ + 1); 
+        //    for (int k = 0; k < NEQ; k ++) {
+	//	rhov =  rhov + rY_in[offset + k];
+	//    }
+        //    for (int k = 0; k < NEQ; k ++) {
+	//	MF[k] = rY_in[offset + k]/rhov;
+	//    }
+	//    energy = rX_in[tid]/rhov ;
+	//    if (iE_Creact == 1) { 
+	//        get_t_given_ey_(&energy, MF, iwrk, rwrk, &temp, &lierr);
+	//    } else {
+	//        get_t_given_hy_(&energy, MF, iwrk, rwrk, &temp, &lierr);
+	//    }
+	//    rY_in[offset + NEQ] =  temp;
+	//}
 
 	/* If in debug mode: print stats */
         if (iverbose > 2) {
@@ -577,6 +596,147 @@ static int check_flag(void *flagvalue, const char *funcname, int opt)
 
   return(0);
 }
+
+/* 
+ * Non device functions
+ */
+void ckindx_(int * iwrk, double * rwrk, int * mm, int * kk, int * ii, int * nfit)
+{
+    *mm = 4;
+    *kk = 56;
+    *ii = 289;
+    *nfit = -1; /*Why do you need this anyway ?  */
+}
+
+//void imolecularWeight_(double * iwt)
+//{
+//    iwt[0] = 0.992093; /*H */
+//    iwt[1] = 0.062502; /*O */
+//    iwt[2] = 0.058798; /*OH */
+//    iwt[3] = 0.030297; /*HO2 */
+//    iwt[4] = 0.496047; /*H2 */
+//    iwt[5] = 0.055508; /*H2O */
+//    iwt[6] = 0.029399; /*H2O2 */
+//    iwt[7] = 0.031251; /*O2 */
+//    iwt[8] = 0.076810; /*CH */
+//    iwt[9] = 0.071291; /*CH2 */
+//    iwt[10] = 0.071291; /*CH2* */
+//    iwt[11] = 0.066511; /*CH3 */
+//    iwt[12] = 0.062332; /*CH4 */
+//    iwt[13] = 0.034461; /*HCO */
+//    iwt[14] = 0.033304; /*CH2O */
+//    iwt[15] = 0.032222; /*CH3O */
+//    iwt[16] = 0.032222; /*CH2OH */
+//    iwt[17] = 0.031209; /*CH3OH */
+//    iwt[18] = 0.035701; /*CO */
+//    iwt[19] = 0.022722; /*CO2 */
+//    iwt[20] = 0.039952; /*C2H */
+//    iwt[21] = 0.038405; /*C2H2 */
+//    iwt[22] = 0.036974; /*C2H3 */
+//    iwt[23] = 0.035645; /*C2H4 */
+//    iwt[24] = 0.034409; /*C2H5 */
+//    iwt[25] = 0.033256; /*C2H6 */
+//    iwt[26] = 0.024373; /*HCCO */
+//    iwt[27] = 0.023788; /*CH2CO */
+//    iwt[28] = 0.023231; /*CH3CO */
+//    iwt[29] = 0.023231; /*CH2CHO */
+//    iwt[30] = 0.022700; /*CH3CHO */
+//    iwt[31] = 0.025603; /*C3H3 */
+//    iwt[32] = 0.024959; /*pC3H4 */
+//    iwt[33] = 0.024959; /*aC3H4 */
+//    iwt[34] = 0.024347; /*aC3H5 */
+//    iwt[35] = 0.024347; /*CH3CCH2 */
+//    iwt[36] = 0.023764; /*C3H6 */
+//    iwt[37] = 0.023208; /*nC3H7 */
+//    iwt[38] = 0.023208; /*iC3H7 */
+//    iwt[39] = 0.017837; /*C2H3CHO */
+//    iwt[40] = 0.019976; /*C4H2 */
+//    iwt[41] = 0.019582; /*iC4H3 */
+//    iwt[42] = 0.019203; /*C4H4 */
+//    iwt[43] = 0.018838; /*iC4H5 */
+//    iwt[44] = 0.018838; /*C4H5-2 */
+//    iwt[45] = 0.018487; /*C4H6 */
+//    iwt[46] = 0.018487; /*C4H612 */
+//    iwt[47] = 0.018487; /*C4H6-2 */
+//    iwt[48] = 0.018149; /*C4H7 */
+//    iwt[49] = 0.017823; /*C4H81 */
+//    iwt[50] = 0.017508; /*pC4H9 */
+//    iwt[51] = 0.005871; /*NC12H26 */
+//    iwt[52] = 0.011882; /*C6H12 */
+//    iwt[53] = 0.012026; /*C6H11 */
+//    iwt[54] = 0.014258; /*C5H10 */
+//    iwt[55] = 0.035697; /*N2 */
+//
+//    return;
+//}
+
+//void ckpy_(double * rho, double *  T, double * y, int * iwrk, double * rwrk, double * P)
+//{
+//    double imw[56];/* inv molecular weight array */
+//    imolecularWeight_(imw);
+//    double YOW = 0;/* for computing mean MW */
+//    YOW += y[0]*imw[0]; /*H */
+//    YOW += y[1]*imw[1]; /*O */
+//    YOW += y[2]*imw[2]; /*OH */
+//    YOW += y[3]*imw[3]; /*HO2 */
+//    YOW += y[4]*imw[4]; /*H2 */
+//    YOW += y[5]*imw[5]; /*H2O */
+//    YOW += y[6]*imw[6]; /*H2O2 */
+//    YOW += y[7]*imw[7]; /*O2 */
+//    YOW += y[8]*imw[8]; /*CH */
+//    YOW += y[9]*imw[9]; /*CH2 */
+//    YOW += y[10]*imw[10]; /*CH2* */
+//    YOW += y[11]*imw[11]; /*CH3 */
+//    YOW += y[12]*imw[12]; /*CH4 */
+//    YOW += y[13]*imw[13]; /*HCO */
+//    YOW += y[14]*imw[14]; /*CH2O */
+//    YOW += y[15]*imw[15]; /*CH3O */
+//    YOW += y[16]*imw[16]; /*CH2OH */
+//    YOW += y[17]*imw[17]; /*CH3OH */
+//    YOW += y[18]*imw[18]; /*CO */
+//    YOW += y[19]*imw[19]; /*CO2 */
+//    YOW += y[20]*imw[20]; /*C2H */
+//    YOW += y[21]*imw[21]; /*C2H2 */
+//    YOW += y[22]*imw[22]; /*C2H3 */
+//    YOW += y[23]*imw[23]; /*C2H4 */
+//    YOW += y[24]*imw[24]; /*C2H5 */
+//    YOW += y[25]*imw[25]; /*C2H6 */
+//    YOW += y[26]*imw[26]; /*HCCO */
+//    YOW += y[27]*imw[27]; /*CH2CO */
+//    YOW += y[28]*imw[28]; /*CH3CO */
+//    YOW += y[29]*imw[29]; /*CH2CHO */
+//    YOW += y[30]*imw[30]; /*CH3CHO */
+//    YOW += y[31]*imw[31]; /*C3H3 */
+//    YOW += y[32]*imw[32]; /*pC3H4 */
+//    YOW += y[33]*imw[33]; /*aC3H4 */
+//    YOW += y[34]*imw[34]; /*aC3H5 */
+//    YOW += y[35]*imw[35]; /*CH3CCH2 */
+//    YOW += y[36]*imw[36]; /*C3H6 */
+//    YOW += y[37]*imw[37]; /*nC3H7 */
+//    YOW += y[38]*imw[38]; /*iC3H7 */
+//    YOW += y[39]*imw[39]; /*C2H3CHO */
+//    YOW += y[40]*imw[40]; /*C4H2 */
+//    YOW += y[41]*imw[41]; /*iC4H3 */
+//    YOW += y[42]*imw[42]; /*C4H4 */
+//    YOW += y[43]*imw[43]; /*iC4H5 */
+//    YOW += y[44]*imw[44]; /*C4H5-2 */
+//    YOW += y[45]*imw[45]; /*C4H6 */
+//    YOW += y[46]*imw[46]; /*C4H612 */
+//    YOW += y[47]*imw[47]; /*C4H6-2 */
+//    YOW += y[48]*imw[48]; /*C4H7 */
+//    YOW += y[49]*imw[49]; /*C4H81 */
+//    YOW += y[50]*imw[50]; /*pC4H9 */
+//    YOW += y[51]*imw[51]; /*NC12H26 */
+//    YOW += y[52]*imw[52]; /*C6H12 */
+//    YOW += y[53]*imw[53]; /*C6H11 */
+//    YOW += y[54]*imw[54]; /*C5H10 */
+//    YOW += y[55]*imw[55]; /*N2 */
+//    *P = *rho * 8.31451e+07 * (*T) * YOW; /*P = rho*R*T/W */
+//
+//    return;
+//}
+
+
 
 /*
  * CUDA device functions
@@ -13267,6 +13427,7 @@ __device__ void molecularWeight_d(double * wt)
 
     return;
 }
+
 /* get temperature given internal energy in mass units and mass fracs */
 __device__ void get_t_given_ey_d_(double * e, double * y_wk, double * t, int * ierr)
 {

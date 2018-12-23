@@ -51,7 +51,8 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 
 int actual_cReact(realtype *rY_in, realtype *rY_src_in, 
 		realtype *rX_in, realtype *rX_src_in, 
-		realtype *P_in, realtype *dt_react, realtype *time);
+		realtype *P_in, 
+		realtype *dt_react, realtype *time, int *Init);
 
 void extern_cFree();
 
@@ -66,22 +67,24 @@ static int check_flag(void *flagvalue, const char *funcname, int opt);
 static void PrintFinalStats(void *cvode_mem);
 
 /* Stuff that comes from Fuego on Host */
-extern "C" {
-    void get_t_given_ey_(double * e, double * y, int * iwrk, double * rwrk, double * t, int *ierr); 
-    void get_t_given_hy_(double * h, double * y, int * iwrk, double * rwrk, double * t, int *ierr); 
-    void ckpy_(double * rho, double * T, double * y, int * iwrk, double * rwrk, double * P);
-    void ckrhoy_(double * P, double * T, double * y, int * iwrk, double * rwrk, double * rho);
-    void ckytcr_(double * rho, double * T, double * y, int * iwrk, double * rwrk, double * c);
-    void ckcvms_(double * T, int * iwrk, double *  rwrk, double * cvms);
-    void ckcpms_(double * T, int * iwrk, double *  rwrk, double * cpms);
-    void ckums_(double * T, int * iwrk, double * rwrk, double * ums);
-    void ckhms_(double * T, int * iwrk, double * rwrk, double * hms);
-    void ckwc_(double * T, double * C, int * iwrk, double * rwrk, double * wdot);
-    void ckwt_(int * iwrk, double * rwrk, double * wt);
-    void dwdot_(double * J, double * sc, double * Tp, int * consP);
+//extern "C" {
+    //void imolecularWeight_(double * iwt);
+    //void ckpy_(double * rho, double * T, double * y, int * iwrk, double * rwrk, double * P);
     void ckindx_(int * iwrk, double * rwrk, int * mm, int * kk, int * ii, int * nfit); 
-    void ajacobian_diag_(double * J, double * sc, double T, int consP);
-}
+
+    //void get_t_given_ey_(double * e, double * y, int * iwrk, double * rwrk, double * t, int *ierr); 
+    //void get_t_given_hy_(double * h, double * y, int * iwrk, double * rwrk, double * t, int *ierr); 
+    //void ckrhoy_(double * P, double * T, double * y, int * iwrk, double * rwrk, double * rho);
+    //void ckytcr_(double * rho, double * T, double * y, int * iwrk, double * rwrk, double * c);
+    //void ckcvms_(double * T, int * iwrk, double *  rwrk, double * cvms);
+    //void ckcpms_(double * T, int * iwrk, double *  rwrk, double * cpms);
+    //void ckums_(double * T, int * iwrk, double * rwrk, double * ums);
+    //void ckhms_(double * T, int * iwrk, double * rwrk, double * hms);
+    //void ckwc_(double * T, double * C, int * iwrk, double * rwrk, double * wdot);
+    //void ckwt_(int * iwrk, double * rwrk, double * wt);
+    //void dwdot_(double * J, double * sc, double * Tp, int * consP);
+    //void ajacobian_diag_(double * J, double * sc, double T, int consP);
+//}
 
 
 /**********************************/

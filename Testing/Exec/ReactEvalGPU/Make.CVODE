@@ -6,3 +6,6 @@ ifeq ($(USE_CVODE_CUSOLVER), TRUE)
     ##LIBRARIES += -rpath=$(CUDA_DIR)/lib64
 endif 
 endif
+
+INCLUDE_LOCATIONS += $(CVODE_LIB_DIR)/../../srcdir/include
+INCLUDE_LOCATIONS += $(CVODE_LIB_DIR)/..//include
