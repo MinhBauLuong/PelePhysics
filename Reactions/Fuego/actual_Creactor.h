@@ -79,7 +79,7 @@ void extern_cFree();
 
 static int check_flag(void *flagvalue, const char *funcname, int opt);
 
-static void PrintFinalStats(void *cvode_mem, realtype Temp);
+static void PrintFinalStats(void *cvodeMem, realtype Temp, bool InitPartial);
 
 static UserData AllocUserData(void);
 

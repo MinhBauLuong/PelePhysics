@@ -7,6 +7,14 @@
   SUNLinearSolver LS = NULL;
   SUNMatrix A = NULL;
   long int nsetups_old = 0;
+  long int nst_old =  0;
+  long int nfe_old =  0;
+  long int nni_old =  0;
+  long int ncfn_old = 0;
+  long int nfeLS_old = 0;
+  long int nje_old = 0;
+  long int npe_old = 0;
+  long int nps_old = 0;
   int NEQ    = 0;
   int NCELLS    = 0;
   int iDense_Creact = 1;
@@ -20,6 +28,7 @@
   double *rhohsrc_ext = NULL;
   double *rYsrc = NULL;
   double temp_old = 0;
+  bool InitPartial = false;
   UserData data = NULL;
   //std::vector< double > arr_time_PSolve;
   std::chrono::duration<double> elapsed_seconds;
@@ -233,14 +242,18 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	if (*Init == 1) {
             printf("ReInit always \n");
 	    CVodeReInit(cvode_mem, time_init, y);
+	    InitPartial = false;
 	} else {
 	    temp_old = abs(rY_in[NEQ] - temp_old);
+	    // Sloppy but I can't think of anything better now
             if (temp_old > 50.0) {
 	        printf("ReInit delta_T = %f \n", temp_old);
 	        CVodeReInit(cvode_mem, time_init, y);
+		InitPartial = false;
 	    } else {
 	        printf("ReInit Partial delta_T = %f \n", temp_old);
 	        CVodeReInitPartial(cvode_mem, time_init, y);
+		InitPartial = true;
 	    }
 	}
 	//printf("Time ? dt ? %4.16e %4.16e ", time_init, time_out);
@@ -299,10 +312,10 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	        // *P_in = cdot[2];
 	    }
 
-	    PrintFinalStats(cvode_mem, rY_in[NEQ]);
+	    PrintFinalStats(cvode_mem, rY_in[NEQ], InitPartial);
 
 	} else if (iverbose > 2) {
-	    PrintFinalStats(cvode_mem, temperature_save);
+	    PrintFinalStats(cvode_mem, temperature_save, InitPartial);
 	    std::cout << "Temp, chemistry solve, RHSeval, PSolve, Precond = " << rY_in[NEQ] << " " << total_elapsed.count() << " "<< elapsed_seconds_RHS.count() << " " << elapsed_seconds.count() << " " << elapsed_seconds_Pcond.count() << std::endl; 
 	    std::cout << "Temp, RHSeval represnts, PSolve represents, Precond represents = " << rY_in[NEQ] << " " << elapsed_seconds_RHS.count() / total_elapsed.count() * 100.0 <<  " " << elapsed_seconds.count()/total_elapsed.count() * 100.0 << " " << elapsed_seconds_Pcond.count() /total_elapsed.count() * 100.0 << std::endl;
 	}
@@ -754,7 +767,7 @@ void extern_cFree(){
 /* 
  * Get and print some final statistics
  */
-static void PrintFinalStats(void *cvodeMem, realtype Temp)
+static void PrintFinalStats(void *cvodeMem, realtype Temp, bool InitPartial)
 {
   long int nst, nfe, nsetups, nje, nfeLS, nni, ncfn, netf, nge;
   long int nli, npe, nps, ncfl;
@@ -793,17 +806,46 @@ static void PrintFinalStats(void *cvodeMem, realtype Temp)
   }
 
   printf("\nFinal Statistics:\n");
-  printf("Temp, dt, RHS, NonlinSolvIters, NonlinSolvConvFails, LinSolvSetups = %f %-6ld %-6ld %-6ld %-6ld %-6ld \n",
-	 Temp, nst, nfe, nni, ncfn, nsetups-nsetups_old);
-  //nsetups_old = nsetups;
-  //nsetups_old = 0;
+  if (InitPartial) {
+         printf("Temp, dt, RHS, NonlinSolvIters, NonlinSolvConvFails, LinSolvSetups = %f %-6ld %-6ld %-6ld %-6ld %-6ld \n",
+	 Temp, nst-nst_old, nfe-nfe_old, nni-nni_old, ncfn-ncfn_old, nsetups-nsetups_old);
+  }else{
+         printf("Temp, dt, RHS, NonlinSolvIters, NonlinSolvConvFails, LinSolvSetups = %f %-6ld %-6ld %-6ld %-6ld %-6ld \n",
+	 Temp, nst, nfe, nni, ncfn, nsetups);
+  }
+  /* RESET */
+  nsetups_old = nsetups;
+  nst_old = nst;
+  nfe_old = nfe;
+  nni_old = nni;
+  ncfn_old = ncfn;
+
   if (iDense_Creact == 1){
-      printf("Temp, FD RHS, NumJacEvals                                          = %f %-6ld %-6ld \n", Temp, nfeLS, nje);
+      if (InitPartial) {
+          printf("Temp, FD RHS, NumJacEvals                                          = %f %-6ld %-6ld \n", Temp, nfeLS-nfeLS_old, nje-nje_old);
+      } else {
+          printf("Temp, FD RHS, NumJacEvals                                          = %f %-6ld %-6ld \n", Temp, nfeLS, nje);
+      }
+      /* RESET */
+      nfeLS_old = nfeLS;
+      nje_old = nje;
   } else if (iDense_Creact == 99){
-      printf("Temp, FD jtv, NumJacEvals, NumPrecEvals, NumPrecSolves             = %f %-6ld %-6ld %-6ld %-6ld \n", 
-		      Temp, nfeLS, nje, npe, nps);
-      //printf("Temp, NumLinIters, NumConvfails = %f %-6ld %-6ld \n", Temp, nli, ncfl);
-      printf("Temp, NumLinIters/LinSolvSetups, NumConvfails                      = %f %f %-6ld \n", Temp, float(nli)/float(nsetups), ncfl);
+	  // LinSolvSetups actually reflects the number of time the LinSolver has been called. 
+	  // NonLinIterations can be taken without the need for LinItes
+          //printf("Temp, NumLinIters/LinSolvSetups, NumConvfails                      = %f %f %-6ld \n", Temp, float(nli)/float(nsetups), ncfl);
+      if (InitPartial) {
+          printf("Temp, FD jtv, NumJacEvals, NumPrecEvals, NumPrecSolves             = %f %-6ld %-6ld %-6ld %-6ld \n", 
+            	      Temp, nfeLS-nfeLS_old, nje-nje_old, npe-npe_old, nps-nps_old);
+      } else {
+          printf("Temp, FD jtv, NumJacEvals, NumPrecEvals, NumPrecSolves             = %f %-6ld %-6ld %-6ld %-6ld \n", 
+            	      Temp, nfeLS, nje, npe, nps);
+          //printf("Temp, NumLinIters/LinSolvSetups, NumConvfails                      = %f %f %-6ld \n", Temp, float(nli)/float(nsetups), ncfl);
+      }
+      /* RESET */
+      nfeLS_old = nfeLS;
+      nje_old = nje;
+      npe_old = npe;
+      nps_old = nps;
   }
 }
 
