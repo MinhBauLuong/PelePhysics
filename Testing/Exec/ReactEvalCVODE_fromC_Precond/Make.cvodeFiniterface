@@ -1,0 +1,4 @@
+
+INCLUDE_LOCATIONS += $(CVODE_LIB_DIR)/../../srcdir/include
+INCLUDE_LOCATIONS += $(CVODE_LIB_DIR)/..//include
+INCLUDE_LOCATIONS += /home/amfelden/CODES/SuiteSparse/include
