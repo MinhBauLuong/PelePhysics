@@ -2,12 +2,15 @@ probin_file = probin
 n_cell = 1
 max_grid_size = 1
 
-dt = 1.e-08
-ndt = 300
+dt = 2.e-09
+ndt = 9000
+
+# 1=full e, 2=full h
+iE = 1
 
 write_plotfile = 1
 
 do_tiling = 0
 
 amr.plot_file       = plt
-#txtfile_in          = 1D_y_7530_DOD #1D_y_5105_2
+txtfile_in          = datafromSC.dat

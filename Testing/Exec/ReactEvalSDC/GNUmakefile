@@ -6,37 +6,62 @@ USE_MPI    = FALSE
 USE_OMP    = FALSE
 
 USE_CUDA   = FALSE
+ifeq ($(USE_CUDA), TRUE)
+    USE_CUDA_CVODE = TRUE
+    USE_CVODE_CUSOLVER = TRUE
+    COMP           = gcc
+else
+    USE_CUDA_CVODE = FALSE
+    USE_CVODE_CUSOLVER = FALSE
+    COMP           = gcc
+endif
 
-COMP       = gcc
-FCOMP	   = gfortran 
-#mpif90
 DIM        = 2
 PRECISION  = DOUBLE
 EBASE     = main
 
 FUEGO_GAS  = TRUE
 
-#USE_CVODE = FALSE
-#USE_SUNDIALS3=TRUE
-USE_SUNDIALS_3x4x=TRUE
-USE_DVODE=TRUE
+#######################
+#include ./Make.cvodeFiniterface 
 
-USE_CUDA_CVODE = FALSE
+USE_DVODE=TRUE
+ifeq ($(USE_DVODE), TRUE)
+    DEFINES  += -DUSE_DVODE
+endif
+
+USE_SUNDIALS_3x4x=FALSE
+#CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/instdir/lib/ 
+
+USE_KLU = FALSE
+ifeq ($(USE_KLU), TRUE)
+    DEFINES  += -DUSE_KLU
+endif
+
+USE_FORTRAN_CVODE=FALSE
+ifeq ($(USE_FORTRAN_CVODE), TRUE)
+    DEFINES  += -DUSE_FORTRAN_CVODE
+    USE_PYJAC = FALSE
+    ifeq ($(USE_PYJAC), TRUE)
+        DEFINES  += -DUSE_PYJAC
+    endif
+else
+    USE_PYJAC = FALSE
+endif
 
 USE_SDC_FORTRAN = TRUE
 ifeq ($(USE_SDC_FORTRAN), TRUE)
-    DEFINES  += -DUSE_SDC_F
+    DEFINES  += -DUSE_SDC_FORTRAN
 endif
 
 
-CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/instdir/lib/ 
-
+#######################
 
 ifeq ($(FUEGO_GAS), TRUE)
   Eos_dir         = Fuego
   #Chemistry_Model = ERC_nheptane
-  Chemistry_Model = LiDryer
-  #Chemistry_Model = dodecane_wang
+  #Chemistry_Model = LiDryer
+  Chemistry_Model = dodecane_wang
   Reactions_dir   = Fuego
   Transport_dir   = Simple
 else

@@ -30,7 +30,7 @@ int main (int argc,
     std::cout << std::setprecision(15);
 
     int n_cell, max_grid_size;
-    int cvode_meth,cvode_itmeth,cvode_iJac,cvode_iE,ivode;
+    int cvode_meth,cvode_itmeth,cvode_iJac,iE,ivode;
     int write_plotfile;
     Real time, dt;
     int ndt;
@@ -59,6 +59,12 @@ int main (int argc,
       // Time steps
       pp.get("dt",dt);
 
+      pp.get("iE",iE);
+      // Select CVODE type of energy employed.
+      //1 for UV, 2 for HP
+      //   1 = Internal energy
+      //   anything else = enthalpy (PeleLM restart)
+      //
       pp.get("write_plotfile",write_plotfile);
       pp.get("do_tiling",do_tiling);
 
@@ -83,7 +89,7 @@ int main (int argc,
     std::vector<int> probin_file_name(probin_file_length);
     for (int i = 0; i < probin_file_length; i++)
 	    probin_file_name[i] = probin_file[i];
-    extern_init(&(probin_file_name[0]),&probin_file_length);
+    extern_init(&(probin_file_name[0]),&probin_file_length,&iE);
 
 
     // make BoxArray and Geometry

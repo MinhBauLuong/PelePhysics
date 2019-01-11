@@ -52,17 +52,18 @@ contains
 
 #ifdef USE_SDC_FORTRAN
   ! Call to SDC: only in Fuego 
-  subroutine reactor_init_sdc(nLobato, nsdcite) bind(C, name="reactor_init_sdc")
+  subroutine reactor_init_sdc(iE, nLobato, nsdcite) bind(C, name="reactor_init_sdc")
 
     use, intrinsic :: iso_c_binding
 
     implicit none
     integer,  intent(in   ) :: nLobato, nsdcite 
+    integer,  intent(in   ) :: iE
 
     write(*,*) "Using SDC integrator for chemistry"
 
     !$omp parallel
-    call actual_reactor_init_sdc(nLobato, nsdcite)
+    call actual_reactor_init_sdc(iE, nLobato, nsdcite)
     !$omp end parallel
     
     reactor_initialized = .true.

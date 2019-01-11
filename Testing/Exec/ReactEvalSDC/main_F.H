@@ -6,7 +6,7 @@
 extern "C"
 {
     void extern_init
-    (const int* name, const int* namlen);
+    (const int* name, const int* namlen, const int* cvode_iE);
 
     void extern_close();
 

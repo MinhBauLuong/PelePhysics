@@ -8,11 +8,11 @@ module main_module
   real(amrex_real), dimension(:,:), allocatable :: Y_in, Y_forcing_in
   real(amrex_real), dimension(:), allocatable :: temp
   real(amrex_real)                            :: pressure
-  integer :: nlin
+  integer :: nlin, iE
 
 contains
 
-    subroutine extern_init(name,namlen) &
+    subroutine extern_init(name,namlen, iE_in) &
                     bind(C, name="extern_init")
 
     use, intrinsic :: iso_c_binding
@@ -23,10 +23,13 @@ contains
 
     integer :: namlen
     integer :: name(namlen)
+    integer(c_int), intent(in) :: iE_in
 
     real (kind=dp_t) :: small_temp = 1.d-200
     real (kind=dp_t) :: small_dens = 1.d-200
     integer :: nLobato, nsdcite 
+
+    iE = iE_in
 
     ! initialize the external runtime parameters in
     ! extern_probin_module
@@ -38,9 +41,9 @@ contains
 
     call transport_init()
 
-    nLobato = 3
-    nsdcite = 3
-    call reactor_init_sdc(nLobato, nsdcite)
+    nLobato = 4
+    nsdcite = 4
+    call reactor_init_sdc(iE, nLobato, nsdcite)
 
   end subroutine extern_init
 
@@ -99,7 +102,8 @@ contains
     open (unit=49, file=probin(1:namlen), form='formatted', status='old')
     ! Start with number of useful lines
     read(49,*) nlin
-    write(*,*) "  --> txt file has ", nlin, " lines"
+    write(*,*) " ->txt file has ", nlin, " lines"
+    write(*,*) " "
     ! allocate stuff
     allocate(Y_in(nlin,nspec))
     allocate(Y_forcing_in(nlin,nspec+1))
@@ -111,20 +115,21 @@ contains
     ! read useful lines
     DO i = 1, nlin
       read(49,*) y, dum, y_velocity, density, dum, dum, temp(i), dum, dum, dum, dum, Y_in(i,:), dum, dum, dum, dum, dum, dum, Y_forcing_in(i,:)
-      !print *, sum(Y_in(i,:))
       !print *, Y_forcing_in(i,nspec+1)*10.0
     END DO
     ! Todo
-    pressure = 1013250.d0
+    !pressure = 1013250.d0
+    pressure = 15000000.d0
 
     close (unit=49)
 
     ! Conversion MKS to CGS for PelePhys
     !! nspec + 1 is energy which here is enthalpy !!
     DO i = 1, nlin
-      Y_forcing_in(i,1:nspec) = Y_forcing_in(i,1:nspec)*1.d-3
-      Y_forcing_in(i,nspec+1) = Y_forcing_in(i,nspec+1)*10.0
+      Y_forcing_in(i,1:nspec) = 0.0d0 !Y_forcing_in(i,1:nspec)*1.d-3
+      Y_forcing_in(i,nspec+1) = 0.0d0 !Y_forcing_in(i,nspec+1)*10.0
     END DO
+    CALL flush(6)
 
   end subroutine read_data_from_txt
 
@@ -161,15 +166,23 @@ contains
 
              eos_state % p          = pressure
              eos_state % T          = temp(i+1)
-             eos_state % massfrac(:)     = Y_in(i+1,:)
+             !eos_state % massfrac(:)     = Y_in(i+1,:)
              !eos_state % massfrac(nspec) = ONE - sum(Y_in(i+1,1:nspec-1))
+             eos_state % molefrac(:)     = Y_in(i+1,:)
+
+             call eos_xty(eos_state)
 
              call eos_tp(eos_state)
 
              ! rhoY(:nspec) = rhoY, rhoY(nspec+1) = nrg, rhoY(nspec+2) = T
              rhoY(i,j,k,1:nspec) = eos_state % massfrac * eos_state % rho
              ! full enthalpy mode
-             rhoY(i,j,k,nspec+1) = eos_state % h
+             if (iE == 1) then
+                 rhoY(i,j,k,nspec+1) = eos_state % e 
+                 print *, rhoY(i,j,k,nspec+1)
+             else
+                 rhoY(i,j,k,nspec+1) = eos_state % h 
+             end if
 
              rhoY(i,j,k,nspec+2) = eos_state % T
 
@@ -244,7 +257,11 @@ contains
              rhoY(i,j,k,1:nspec) = eos_state % massfrac * eos_state % rho
              ! full enthalpy mode
              !stop 'Full H mode not allowed when data init by hand'
-             rhoY(i,j,k,nspec+1) = eos_state % h
+             if (iE == 1) then
+                 rhoY(i,j,k,nspec+1) = eos_state % e
+             else
+                 rhoY(i,j,k,nspec+1) = eos_state % h
+             end if
 
              rhoY(i,j,k,nspec+2) = eos_state % T
 
@@ -308,9 +325,16 @@ contains
 
                 write(*,*) ""
                 write(*,*) "Dealing with cell ", i,j,k
+                write(*,*) ""
 
-                react_state_in %              h = mold(i,j,k,nspec+1)
-                react_state_in %    rhohdot_ext = ysrc(i,j,k,nspec+1)
+                if (iE == 1) then
+                    react_state_in %              e = mold(i,j,k,nspec+1)
+                    react_state_in %    rhoedot_ext = ysrc(i,j,k,nspec+1)
+                    print *, react_state_in %              e, react_state_in %    rhoedot_ext
+                else
+                    react_state_in %              h = mold(i,j,k,nspec+1)
+                    react_state_in %    rhohdot_ext = ysrc(i,j,k,nspec+1)
+                end if
                 react_state_in %              T = mold(i,j,k,nspec+2)
                 react_state_in %        rhoY(:) = mold(i,j,k,1:nspec)
                 react_state_in %            rho = sum(react_state_in % rhoY(:))
@@ -332,6 +356,7 @@ contains
                         rho            = sum(react_state_in % rhoY(1:nspec))
                         write(12,*) time_tmp, react_state_in % T, react_state_in %e, react_state_in %h, react_state_in % p, react_state_in %rho, react_state_in % rhoY(1:nspec)/rho
                 end do
+                CALL flush(12)
 
                 ! Export e whenever
                 mnew(i,j,k,nspec+1)             = react_state_in % e
@@ -345,27 +370,27 @@ contains
                 !        stop
                 !end if
 
-                CALL t_total%stop
-                CALL t_total%norm(t_total)
-                CALL t_bechem%norm(t_total)
-                CALL t_eos%norm(t_total)
-                CALL t_ck%norm(t_total)
-                if ((i == 0).and.(j==0).and.(k==0)) then
-                    CALL t_readData%norm(t_total)
-                end if
-                !PRINTS
-                CALL t_total%print
-                CALL t_bechem%print
-                CALL t_eos%print
-                CALL t_ck%print
-                if ((i == 0).and.(j==0).and.(k==0))  then
-                    CALL t_readData%print
-                end if
-                !RESETS
-                CALL t_total%reset
-                CALL t_bechem%reset
-                CALL t_eos%reset
-                CALL t_ck%reset
+                !CALL t_total%stop
+                !CALL t_total%norm(t_total)
+                !CALL t_bechem%norm(t_total)
+                !CALL t_eos%norm(t_total)
+                !CALL t_ck%norm(t_total)
+                !if ((i == 0).and.(j==0).and.(k==0)) then
+                !    CALL t_readData%norm(t_total)
+                !end if
+                !!PRINTS
+                !CALL t_total%print
+                !CALL t_bechem%print
+                !CALL t_eos%print
+                !CALL t_ck%print
+                !if ((i == 0).and.(j==0).and.(k==0))  then
+                !    CALL t_readData%print
+                !end if
+                !!RESETS
+                !CALL t_total%reset
+                !CALL t_bechem%reset
+                !CALL t_eos%reset
+                !CALL t_ck%reset
 
           end do
        enddo
