@@ -213,6 +213,7 @@ int main (int argc,
          for (int i = 0; i < txtfile_in_length; i++)
 	 txtfile_in_name[i] = txtfile_in[i];
 
+	 printf(" (main) Will read data_from_txt ... \n");
 	 read_data_from_txt(&(txtfile_in_name[0]),&txtfile_in_length,&plo);
 
 #ifdef _OPENMP
@@ -313,7 +314,7 @@ int main (int argc,
 	Real time_tmp, dt_incr, dt_tmp;
 	dt_incr =  dt;
 	time_tmp = time;
-	int reInit = 0;
+	int reInit = 1;
 	//printf("#TIME TEMPERATURE \n");
 	myfile << "#TIME TEMPERATURE P Yks \n";
 	for (int i = 0; i < ndt; ++i) {
@@ -322,7 +323,8 @@ int main (int argc,
 				tmp_vect_energy, tmp_src_vect_energy,
 				&plo, &dt_incr, &time_tmp, &reInit);
 				//&plo, &dt_incr, &time, &reInit);
-		time_tmp = dt_tmp;
+		dt_incr = dt;
+		//time_tmp = dt_tmp;
                 //printf("--> at time : %2.8e, ",time_tmp);
 		//printf(" out state (T) is %4.4f and Ysrc(OH) is \n", tmp_vect[Ncomp], plo);
 		//printf("%2.8e %4.4f \n", time_tmp, tmp_vect[Ncomp]);

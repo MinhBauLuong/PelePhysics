@@ -13,6 +13,10 @@ OUT_*
 THERMO_APPEND.txt
 *_test_sparse
 LiDryer.c_*
+*toto*
+1D_y_7530*
+1D_y_5105*
+*.png
 
 # AMReX build directories
 d/
@@ -25,6 +29,8 @@ tmp_build_dir/
 # Executable
 *.ex
 *.exe
+*.agr
+*.par
 
 
 # Run output
@@ -33,6 +39,10 @@ plt*
 *plt*old*
 Backtrace*
 chk*
+slice*
+out*
+fort.txt
+fort.12
 
 # OSX files
 .DS_Store
@@ -43,6 +53,7 @@ extract.py
 script.py
 script_gpu.py
 script_therm.py
+extract_plot.py
 
 # Folders
 ReactEvalCVODE/

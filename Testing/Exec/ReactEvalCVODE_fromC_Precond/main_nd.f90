@@ -188,7 +188,7 @@ contains
     do i = 1, namlen
        probin(i:i) = char(name(i))
     end do
-    print *, "Initializing from output txt file ",probin(1:namlen)
+    write(6,*) "Initializing from output txt file ",probin(1:namlen)
 
     ! read in the file
     open (unit=49, file=probin(1:namlen), form='formatted', status='old')
@@ -210,7 +210,8 @@ contains
       !print *, Y_forcing_in(i,nspec+1)*10.0
     END DO
     ! Todo
-    pressure = 1013250.d0
+    !pressure = 1013250.d0
+    pressure = 15000000.d0
 
     close (unit=49)
 
@@ -221,6 +222,7 @@ contains
       Y_forcing_in(i,nspec+1) = 0.0 !Y_forcing_in(i,nspec+1)*10.0
     END DO
     plo = pressure 
+    CALL flush(6)
   end subroutine read_data_from_txt
   !--------!
 
@@ -265,10 +267,12 @@ contains
 
              eos_state % p          = pressure
              eos_state % T          = temp(i+1)
-             eos_state % massfrac(:)     = Y_in(i+1,:)
+             eos_state % molefrac(:)     = Y_in(i+1,:)
              !eos_state % massfrac(nspec) = ONE - sum(Y_in(i+1,1:nspec-1))
              !print *,i,j,k
              !print *,eos_state % T  
+
+             call eos_xty(eos_state)
 
              call eos_tp(eos_state)
 
@@ -282,6 +286,9 @@ contains
              rhoE(i,j,k,1) = eos_state % e * eos_state % rho
              !rhoE src ext
              rhoEs(i,j,k,1) = Y_forcing_in(i+1,nspec+1)
+
+             print *, "rho, e_init, rhoe_init ", eos_state % rho, eos_state % e, rhoE(i,j,k,1)
+             print *, "Y(O2)", eos_state % massfrac(8)
 
           end do
        end do
