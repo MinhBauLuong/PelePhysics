@@ -29,6 +29,7 @@
   double *rYsrc = NULL;
   double temp_old = 0;
   bool InitPartial = false;
+  bool FirstTimePrecond = true;
   UserData data = NULL;
   //std::vector< double > arr_time_PSolve;
   std::chrono::duration<double> elapsed_seconds;
@@ -107,6 +108,18 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	 * and vector absolute tolerances */
 	flag = CVodeSVtolerances(cvode_mem, reltol, atol);
 	if (check_flag(&flag, "CVodeSVtolerances", 1)) return(1);
+
+	//flag = CVodeSetInitStep(cvode_mem, 1.0e-08);
+	//if (check_flag(&flag, "CVodeSetInitStep", 1)) return(1);
+
+	flag = CVodeSetNonlinConvCoef(cvode_mem, 1.0e-03);
+	if (check_flag(&flag, "CVodeSetNonlinConvCoef", 1)) return(1);
+
+	flag = CVodeSetMaxNonlinIters(cvode_mem, 15);
+	if (check_flag(&flag, "CVodeSetMaxNonlinIters", 1)) return(1);
+
+	flag = CVodeSetMaxErrTestFails(cvode_mem, 100);
+	if (check_flag(&flag, "CVodeSetMaxErrTestFails", 1)) return(1);
 
 	if (iDense_Creact == 1) {
             printf("\n--> Using a Direct Dense Solver \n");
@@ -214,12 +227,16 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	realtype time_init, time_out, temperature_save ;
 	int flag;
 
+        //FirstTimePrecond = true;
+
         time_init = *time;
-	time_out  = *time + *dt_react;
+	time_out  = *time + (*dt_react);
 	start = std::chrono::system_clock::now();
         elapsed_seconds = start - start;
         elapsed_seconds_RHS = start - start;
         elapsed_seconds_Pcond = start - start;
+
+	printf("BEG : time curr is %14.6e and dt_react is %14.6e \n", time_init, *dt_react);
 
 	/* Get Device MemCpy of in arrays */
 	/* Get Device pointer of solution vector */
@@ -239,6 +256,7 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	}
 
 	/* Call CVODE: ReInit for convergence */
+            printf("\n -------------------------------------\n");
 	if (*Init == 1) {
             printf("ReInit always \n");
 	    CVodeReInit(cvode_mem, time_init, y);
@@ -258,7 +276,14 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	}
 	//printf("Time ? dt ? %4.16e %4.16e ", time_init, time_out);
 	flag = CVode(cvode_mem, time_out, y, &time_init, CV_NORMAL);
+	//flag = CVode(cvode_mem, time_out, y, &time_init, CV_ONE_STEP);
 	if (check_flag(&flag, "CVode", 1)) return(1);
+
+	//CHECK THIS
+	//CVodeGetCurrentTime(cvode_mem, time);
+	*time = time_out;
+	*dt_react = *time - time_init;
+	printf("END : time curr is %14.6e and dt_react is %14.6e \n", *time, *dt_react);
 
 	/* Pack data to return in main routine external */
 	std::memcpy(rY_in, yvec_d, ((NEQ+1)*NCELLS)*sizeof(realtype));
@@ -289,7 +314,7 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	        }
                 //ckwt_(iwrk, rwrk, molecular_weight);
                 for (int k = 0; k < NEQ; k ++) {
-	    	MF[k] = rY_in[offset + k]/rhov;
+	    	    MF[k] = rY_in[offset + k]/rhov;
 	            //activity[k] = rY_in[offset + k]/(molecular_weight[k]);
 	        }
 	        energy = rX_in[tid]/rhov ;
@@ -315,9 +340,11 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	    PrintFinalStats(cvode_mem, rY_in[NEQ], InitPartial);
 
 	} else if (iverbose > 2) {
+	    printf("\nAdditional verbose info --\n");
 	    PrintFinalStats(cvode_mem, temperature_save, InitPartial);
 	    std::cout << "Temp, chemistry solve, RHSeval, PSolve, Precond = " << rY_in[NEQ] << " " << total_elapsed.count() << " "<< elapsed_seconds_RHS.count() << " " << elapsed_seconds.count() << " " << elapsed_seconds_Pcond.count() << std::endl; 
 	    std::cout << "Temp, RHSeval represnts, PSolve represents, Precond represents = " << rY_in[NEQ] << " " << elapsed_seconds_RHS.count() / total_elapsed.count() * 100.0 <<  " " << elapsed_seconds.count()/total_elapsed.count() * 100.0 << " " << elapsed_seconds_Pcond.count() /total_elapsed.count() * 100.0 << std::endl;
+            printf(" -------------------------------------\n");
 	}
 
         long int nfe;
@@ -530,6 +557,14 @@ static int Precond_sparse(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
 		booleantype *jcurPtr, realtype gamma, void *user_data)
 {
   std::chrono::time_point<std::chrono::system_clock> start, end;		
+  std::chrono::time_point<std::chrono::system_clock> start_Jcomp, end_Jcomp;		
+  std::chrono::time_point<std::chrono::system_clock> start_JNcomp, end_JNcomp;		
+  std::chrono::time_point<std::chrono::system_clock> start_LUfac, end_LUfac;		
+  
+  //std::chrono::duration<double> elapsed_seconds_Jcomp;
+  //std::chrono::duration<double> elapsed_seconds_JNcomp;
+  //std::chrono::duration<double> elapsed_seconds_LUfac;
+  //std::chrono::duration<double> elapsed_seconds_Pcond_prov;
 
   UserData data_wk;
   realtype **(*Jbd)[1];
@@ -539,7 +574,7 @@ static int Precond_sparse(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
   realtype Jmat[(NEQ+1)*(NEQ+1)];
   realtype activity[NEQ], molecular_weight[NEQ];
   double rwrk;
-  int iwrk;
+  int iwrk, ok;
 
   start = std::chrono::system_clock::now();
 
@@ -549,11 +584,13 @@ static int Precond_sparse(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
   Jbd = (data_wk->Jbd);
   udata = N_VGetArrayPointer(u);
 
+  //start_Jcomp = std::chrono::system_clock::now();
   if (jok) {
       /* jok = SUNTRUE: Copy Jbd to P */
+      //printf("\n Reuse J ... ");
       *jcurPtr = SUNFALSE;
   } else {
-	  //printf("JE PASSE PAR LA \n");
+	  //printf("\n Recompute J from scratch ... ");
           ckwt_(&iwrk, &rwrk, molecular_weight);
           for (int i = 0; i < NEQ; i++){
               activity[i] = udata[i]/(molecular_weight[i]);
@@ -585,8 +622,10 @@ static int Precond_sparse(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
 
           *jcurPtr = SUNTRUE;
   }
+  //end_Jcomp = std::chrono::system_clock::now();
+  //elapsed_seconds_Jcomp = end_Jcomp - start_Jcomp;
 
-
+  //start_JNcomp = std::chrono::system_clock::now();
   int nbVals;
   for (int i = 1; i < NEQ+2; i++) {
 	  nbVals = data_wk->colPtrs[i]-data_wk->colPtrs[i-1];
@@ -603,10 +642,27 @@ static int Precond_sparse(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
 		  }
 	  }
   }
-  data_wk->Numeric = klu_factor  (data_wk->colPtrs, data_wk->rowVals, data_wk->Jdata, data_wk->Symbolic, &(data_wk->Common)) ; 
+  //end_JNcomp = std::chrono::system_clock::now();
+  //elapsed_seconds_JNcomp = end_JNcomp - start_JNcomp;
+
+  //start_LUfac = std::chrono::system_clock::now();
+  if (!FirstTimePrecond) {
+  //if (jok) {
+      //printf("and reuse pivots ...");
+      ok = klu_refactor(data_wk->colPtrs, data_wk->rowVals, data_wk->Jdata, data_wk->Symbolic, data_wk->Numeric, &(data_wk->Common));
+  } else {
+      //printf("and compute pivots ...");
+      data_wk->Numeric = klu_factor  (data_wk->colPtrs, data_wk->rowVals, data_wk->Jdata, data_wk->Symbolic, &(data_wk->Common)) ; 
+      FirstTimePrecond = false;
+  }
+  //end_LUfac = std::chrono::system_clock::now();
+  //elapsed_seconds_LUfac = end_LUfac - start_LUfac;
 
   end = std::chrono::system_clock::now();
   elapsed_seconds_Pcond = elapsed_seconds_Pcond + end - start;
+
+  //elapsed_seconds_Pcond_prov = end - start;
+  //std::cout << " stats (Jcomp,JNcomp,pivots,TOTAL) = " << elapsed_seconds_Jcomp.count() <<  " " << elapsed_seconds_JNcomp.count() << " " << elapsed_seconds_LUfac.count() << " " << elapsed_seconds_Pcond_prov.count() << std::endl;
 
   return(0);
 }
@@ -681,6 +737,7 @@ static int Precond(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
   
   /* Scale by -gamma */
   denseScale(-gamma, P[0][0], NEQ+1, NEQ+1);
+  //denseScale(0.0, P[0][0], NEQ+1, NEQ+1);
   
   /* Add identity matrix and do LU decompositions on blocks in place. */
   denseAddIdentity(P[0][0], NEQ+1);
@@ -770,8 +827,9 @@ void extern_cFree(){
 static void PrintFinalStats(void *cvodeMem, realtype Temp, bool InitPartial)
 {
   long int nst, nfe, nsetups, nje, nfeLS, nni, ncfn, netf, nge;
-  long int nli, npe, nps, ncfl;
+  long int nli, npe, nps, ncfl, netfails;
   int flag;
+  realtype hlast, hinused, hcur;
 
   flag = CVodeGetNumSteps(cvodeMem, &nst);
   check_flag(&flag, "CVodeGetNumSteps", 1);
@@ -783,6 +841,14 @@ static void PrintFinalStats(void *cvodeMem, realtype Temp, bool InitPartial)
   check_flag(&flag, "CVodeGetNumLinSolvSetups", 1);
   flag = CVodeGetNumNonlinSolvConvFails(cvodeMem, &ncfn);
   check_flag(&flag, "CVodeGetNumNonlinSolvConvFails", 1);
+  flag = CVodeGetNumErrTestFails(cvodeMem, &netfails);
+  check_flag(&flag, "CVodeGetNumErrTestFails", 1);
+  flag = CVodeGetLastStep(cvodeMem, &hlast);
+  check_flag(&flag, "CVodeGetLastStep", 1);
+  flag = CVodeGetActualInitStep(cvodeMem, &hinused);
+  check_flag(&flag, "CVodeGetActualInitStep", 1);
+  flag = CVodeGetCurrentTime(cvodeMem, &hcur);
+  check_flag(&flag, "CVodeGetCurrentTime", 1);
 
   if (iDense_Creact == 1){
       flag = CVDlsGetNumRhsEvals(cvodeMem, &nfeLS);
@@ -805,13 +871,14 @@ static void PrintFinalStats(void *cvodeMem, realtype Temp, bool InitPartial)
       check_flag(&flag, "CVSpilsGetNumConvFails", 1);
   }
 
-  printf("\nFinal Statistics:\n");
+  printf("-- Final Statistics --\n");
+  printf("NonLinear (Newton) related --\n");
   if (InitPartial) {
-         printf("Temp, dt, RHS, NonlinSolvIters, NonlinSolvConvFails, LinSolvSetups = %f %-6ld %-6ld %-6ld %-6ld %-6ld \n",
-	 Temp, nst-nst_old, nfe-nfe_old, nni-nni_old, ncfn-ncfn_old, nsetups-nsetups_old);
+         printf("    DT(dt-dttrue), RHS, Iterations, ConvFails, LinSolvSetups = %f %-6ld(%14.6e) %-6ld %-6ld %-6ld %-6ld \n",
+	 Temp, nst-nst_old, hlast-hinused, nfe-nfe_old, nni-nni_old, ncfn-ncfn_old, nsetups-nsetups_old);
   }else{
-         printf("Temp, dt, RHS, NonlinSolvIters, NonlinSolvConvFails, LinSolvSetups = %f %-6ld %-6ld %-6ld %-6ld %-6ld \n",
-	 Temp, nst, nfe, nni, ncfn, nsetups);
+         printf("    DT(dt, dtcur), RHS, Iterations, ErrTestFails, LinSolvSetups = %f %-6ld(%14.6e %14.6e) %-6ld %-6ld %-6ld %-6ld \n",
+	 Temp, nst, hlast, hcur, nfe, nni, netfails, nsetups);
   }
   /* RESET */
   nsetups_old = nsetups;
@@ -821,10 +888,11 @@ static void PrintFinalStats(void *cvodeMem, realtype Temp, bool InitPartial)
   ncfn_old = ncfn;
 
   if (iDense_Creact == 1){
+      printf("Linear (Dense Direct Solve) related --\n");
       if (InitPartial) {
-          printf("Temp, FD RHS, NumJacEvals                                          = %f %-6ld %-6ld \n", Temp, nfeLS-nfeLS_old, nje-nje_old);
+          printf("    FD RHS, NumJacEvals                           = %f %-6ld %-6ld \n", Temp, nfeLS-nfeLS_old, nje-nje_old);
       } else {
-          printf("Temp, FD RHS, NumJacEvals                                          = %f %-6ld %-6ld \n", Temp, nfeLS, nje);
+          printf("    FD RHS, NumJacEvals                           = %f %-6ld %-6ld \n", Temp, nfeLS, nje);
       }
       /* RESET */
       nfeLS_old = nfeLS;
@@ -833,12 +901,15 @@ static void PrintFinalStats(void *cvodeMem, realtype Temp, bool InitPartial)
 	  // LinSolvSetups actually reflects the number of time the LinSolver has been called. 
 	  // NonLinIterations can be taken without the need for LinItes
           //printf("Temp, NumLinIters/LinSolvSetups, NumConvfails                      = %f %f %-6ld \n", Temp, float(nli)/float(nsetups), ncfl);
+      printf("Linear (Krylov GMRES Solve) related --\n");
       if (InitPartial) {
-          printf("Temp, FD jtv, NumJacEvals, NumPrecEvals, NumPrecSolves             = %f %-6ld %-6ld %-6ld %-6ld \n", 
+          printf("    RHSeval, jtvEval, NumPrecEvals, NumPrecSolves = %f %-6ld %-6ld %-6ld %-6ld \n", 
             	      Temp, nfeLS-nfeLS_old, nje-nje_old, npe-npe_old, nps-nps_old);
       } else {
-          printf("Temp, FD jtv, NumJacEvals, NumPrecEvals, NumPrecSolves             = %f %-6ld %-6ld %-6ld %-6ld \n", 
+          printf("    RHSeval, jtvEval, NumPrecEvals, NumPrecSolves = %f %-6ld %-6ld %-6ld %-6ld \n", 
             	      Temp, nfeLS, nje, npe, nps);
+          printf("    Iterations, ConvFails = %f %-6ld %-6ld \n", 
+            	      Temp, nli, ncfl );
           //printf("Temp, NumLinIters/LinSolvSetups, NumConvfails                      = %f %f %-6ld \n", Temp, float(nli)/float(nsetups), ncfl);
       }
       /* RESET */
@@ -916,6 +987,9 @@ static UserData AllocUserData(void)
       data_wk->Jdata = SUNSparseMatrix_Data((data_wk->PS)[0][0]);
       sparsity_preproc_(data_wk->rowVals,data_wk->colPtrs,&HP);
       klu_defaults (&(data_wk->Common));
+      //data_wk->Common.btf = 0;
+      data_wk->Common.maxwork = 15;
+      //data_wk->Common.ordering = 1;
       data_wk->Symbolic = klu_analyze (NEQ+1, data_wk->colPtrs, data_wk->rowVals, &(data_wk->Common)) ; 
   }
 #endif
