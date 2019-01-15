@@ -41,8 +41,8 @@ contains
 
     call transport_init()
 
-    nLobato = 3
-    nsdcite = 4
+    nLobato = 2
+    nsdcite = 2
     call reactor_init_sdc(iE, nLobato, nsdcite)
 
   end subroutine extern_init
@@ -118,16 +118,16 @@ contains
       !print *, Y_forcing_in(i,nspec+1)*10.0
     END DO
     ! Todo
-    !pressure = 1013250.d0
-    pressure = 15000000.d0
+    pressure = 1013250.d0
+    !pressure = 15000000.d0
 
     close (unit=49)
 
     ! Conversion MKS to CGS for PelePhys
     !! nspec + 1 is energy which here is enthalpy !!
     DO i = 1, nlin
-      Y_forcing_in(i,1:nspec) = 0.0d0 !Y_forcing_in(i,1:nspec)*1.d-3
-      Y_forcing_in(i,nspec+1) = 0.0d0 !Y_forcing_in(i,nspec+1)*10.0
+      Y_forcing_in(i,1:nspec) = Y_forcing_in(i,1:nspec)*1.d-3
+      Y_forcing_in(i,nspec+1) = Y_forcing_in(i,nspec+1)*10.0
     END DO
     CALL flush(6)
 
@@ -166,10 +166,10 @@ contains
 
              eos_state % p          = pressure
              eos_state % T          = temp(i+1)
-             !eos_state % massfrac(:)     = Y_in(i+1,:)
-             eos_state % molefrac(:)     = Y_in(i+1,:)
+             eos_state % massfrac(:)     = Y_in(i+1,:)
+             !eos_state % molefrac(:)     = Y_in(i+1,:)
 
-             call eos_xty(eos_state)
+             !call eos_xty(eos_state)
 
              call eos_tp(eos_state)
 
@@ -348,9 +348,9 @@ contains
                 write(12,*) "#SDC"
                 write(12,*) "#time, T, e, h, P, rho, Yks "
                 do ii= 1, ndt
-                        dt_react_tmp   = ii* dt_react_incr
+                        !dt_react_tmp   = ii* dt_react_incr
                         stat           = react_sdc(react_state_in, react_state_in, dt_react_incr, time)
-                        time_tmp       = dt_react_tmp
+                        time_tmp       = time_tmp  + dt_react_incr
                         rho            = sum(react_state_in % rhoY(1:nspec))
                         write(12,*) time_tmp, react_state_in % T, react_state_in %e, react_state_in %h, react_state_in % p, react_state_in %rho, react_state_in % rhoY(1:nspec)/rho
                 end do

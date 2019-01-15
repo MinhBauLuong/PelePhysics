@@ -2,8 +2,8 @@ probin_file = probin
 n_cell = 1
 max_grid_size = 1
 
-dt = 1.e-07
-ndt = 1000
+dt = 5.e-09
+ndt = 5000
 
 # 1 = Adams (non-stiff); 2 = BDF (stiff)
 cvode_meth = 2
@@ -15,7 +15,7 @@ cvode_itmeth = 2
 cvode_iJac = 0
 
 # 1=full e, 2=full h
-cvode_iE = 1
+cvode_iE = 2
 
 # choose sparse or dense
 cvode_iDense = 1
@@ -28,4 +28,4 @@ write_plotfile = 1
 do_tiling = 0
 
 amr.plot_file       = plt
-txtfile_in          = datafromSC.dat
+txtfile_in          = 1D_y_7530_DOD
