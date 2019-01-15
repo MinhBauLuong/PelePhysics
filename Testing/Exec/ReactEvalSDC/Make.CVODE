@@ -1,0 +1,11 @@
+ifeq ($(USE_CUDA_CVODE), TRUE)
+ifeq ($(USE_CVODE_CUSOLVER), TRUE)
+    ##DEFINES += -DCUDA_CVODE
+    ##DEFINES += -DCVODE_CUSOLVER
+    LIBRARIES += -lsundials_cusolver_sparse -lcusolver -lcusparse -lcublas
+    ##LIBRARIES += -rpath=$(CUDA_DIR)/lib64
+endif 
+endif
+
+INCLUDE_LOCATIONS += $(CVODE_LIB_DIR)/../../srcdir/include
+INCLUDE_LOCATIONS += $(CVODE_LIB_DIR)/..//include

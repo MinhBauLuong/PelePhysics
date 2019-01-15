@@ -158,9 +158,9 @@ contains
            print *,"Working on the ", sdc, " SDC iteration"
 
 !          write(*,'(A,I2,A)') " SDC ite ", sdc ,"  -------------------- "
-          write(*,'(A,3(ES12.4))') "    T:",eos_state_k(1)%T, eos_state_k(2)%T 
-          write(*,'(A,3(ES12.4))') "  rho:",eos_state_k(1)%rho, eos_state_k(2)%rho 
-          write(*,'(A,3(ES12.4))') "Y(O2):",eos_state_k(1)%massfrac(8), eos_state_k(2)%massfrac(8)!,eos_state_k(3)%massfrac(8)      
+!          write(*,'(A,3(ES12.4))') "    T:",eos_state_k(1)%T, eos_state_k(2)%T, eos_state_k(3)%T 
+!          write(*,'(A,3(ES12.4))') "  rho:",eos_state_k(1)%rho, eos_state_k(2)%rho, eos_state_k(3)%rho 
+!          write(*,'(A,3(ES12.4))') "Y(O2):",eos_state_k(1)%massfrac(8), eos_state_k(2)%massfrac(8), eos_state_k(3)%massfrac(8)      
 
 !         First Lobatto point of each sdc iteration is always the same (previous dt)
           eos_state_kp1(1)     = eos_state_k(1)
@@ -176,9 +176,9 @@ contains
               call sdc_advance_chem(eos_state_kp1(j+1), eos_state_kp1(j), eos_state_k(j+1), &
                       cdot_k(j+1,:), cdot_kp1(j+1,:), I_k(j,:), dtLobato(j), dt_react)
           end do
-          write(*,'(A,3(ES12.4))') "   I_k(O2):",I_k(:,8)
-          write(*,'(A,3(ES12.4))') "   c.k(O2):",cdot_k(:,8)
-          write(*,'(A,3(ES12.4))') " c.kp1(O2):",cdot_kp1(:,8)
+!          write(*,'(A,3(ES12.4))') "   I_k(O2):",I_k(:,8)
+!          write(*,'(A,3(ES12.4))') "   c.k(O2):",cdot_k(:,8)
+!          write(*,'(A,3(ES12.4))') " c.kp1(O2):",cdot_kp1(:,8)
 
 !         Copy state k+1 into k for the next iteration      
           print *," - Update state and wdot for next iteration"

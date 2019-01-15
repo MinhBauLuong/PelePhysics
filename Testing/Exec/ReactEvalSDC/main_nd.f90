@@ -41,7 +41,7 @@ contains
 
     call transport_init()
 
-    nLobato = 4
+    nLobato = 3
     nsdcite = 4
     call reactor_init_sdc(iE, nLobato, nsdcite)
 
@@ -167,7 +167,6 @@ contains
              eos_state % p          = pressure
              eos_state % T          = temp(i+1)
              !eos_state % massfrac(:)     = Y_in(i+1,:)
-             !eos_state % massfrac(nspec) = ONE - sum(Y_in(i+1,1:nspec-1))
              eos_state % molefrac(:)     = Y_in(i+1,:)
 
              call eos_xty(eos_state)
@@ -179,7 +178,7 @@ contains
              ! full enthalpy mode
              if (iE == 1) then
                  rhoY(i,j,k,nspec+1) = eos_state % e 
-                 print *, rhoY(i,j,k,nspec+1)
+                 !print *, rhoY(i,j,k,nspec+1)
              else
                  rhoY(i,j,k,nspec+1) = eos_state % h 
              end if
@@ -250,7 +249,6 @@ contains
 
              eos_state % p               = pressure
              eos_state % T               = temp(1) 
-             !eos_state % massfrac(nspec) = ONE - sum(eos_state % massfrac(1:nspec-1))
 
              call eos_tp(eos_state)
 

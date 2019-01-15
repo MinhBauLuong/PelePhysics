@@ -268,6 +268,7 @@ contains
              eos_state % p          = pressure
              eos_state % T          = temp(i+1)
              eos_state % molefrac(:)     = Y_in(i+1,:)
+             !eos_state % massfrac(:)     = Y_in(i+1,:)
              !eos_state % massfrac(nspec) = ONE - sum(Y_in(i+1,1:nspec-1))
              !print *,i,j,k
              !print *,eos_state % T  
