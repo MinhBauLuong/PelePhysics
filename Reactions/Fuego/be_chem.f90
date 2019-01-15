@@ -9,7 +9,7 @@ module bechem_module
 
    !     Jacobian matrix and factorization
    double precision, allocatable, save :: Jac(:,:), A(:,:)
-   double precision, allocatable, save :: JacT(:,:), AT(:,:)
+   double precision, allocatable, save :: AT(:,:)
    !     Pivot vector returned from LINPACK
    integer, allocatable, save :: ipvt(:)
 
@@ -18,24 +18,22 @@ module bechem_module
 contains
 
    !       do a Backward Euler solve for the chemistry using Newton's method
-   !         Y : solution (output)
-   !        Y0 : initial guess
-   !      hmix : enthalpy (guess) // OR internal energy (guess)
+   !        rY : solution (output)
+   !       rY0 : initial guess
    !       rho : initial density
-   !         T : initial temperature
+   !         T : inout temperature
    !       rhs : input right-hand side
    !rhohdot_ext: ext term source of energy (h OR e)
    !rhoydot_ext: ext term source of species
    ! NB: we should be able to get rid of these ! 
    !        dt : timestep
    !        iE : 1 (UV) // 2 (rhoH)
-   subroutine bechem(Y, Y0, hmix, rho, T_init, rhs, rhohdot_ext, rhoydot_ext, dt, iE)
+   subroutine bechem(rY, rY0, rho, T_init, rhs, rhohdot_ext, rhoydot_ext, dt, iE)
 
-     double precision, intent(out) :: Y(Nspec)
-     double precision, intent(in ) :: Y0(Nspec)
-     double precision, intent(inout ) :: hmix
-     double precision, intent(in ) :: rho
-     double precision, intent(in ) :: T_init
+     double precision, intent(out) :: rY(Nspec)
+     double precision, intent(in ) :: rY0(Nspec)
+     double precision, intent(inout ) :: rho
+     double precision, intent(inout ) :: T_init
      double precision, intent(in ) :: rhs(Nspec+1)
      double precision, intent(in ) :: rhohdot_ext
      double precision, intent(in ) :: rhoydot_ext(Nspec)
@@ -43,14 +41,13 @@ contains
      integer, intent(in )          :: iE
      
      integer          :: iwrk, iter, n, ierr
-     double precision :: rwrk, rmax, rho_inv, T
-     double precision :: cp, cp_inv, cv, cv_inv, Tdot
+     double precision :: rwrk, rmax, rho_inv, T, Tdot
+     double precision :: cp, cp_inv, cv, cv_inv
      double precision :: rcond, dum
      double precision :: res_nl_norm
      double precision, dimension(Nspec+1) :: res_nl,res_nl_init
-     double precision, dimension(Nspec+1) :: res_nl_divided_val_ref
      double precision, dimension(Nspec+1) :: dx_nl
-     double precision, dimension(Nspec)   :: wdot, mwt, invmwt
+     double precision, dimension(Nspec)   :: Y(Nspec), wdot, mwt, invmwt
      double precision, dimension(Nspec)   :: hi, ei
      integer, parameter :: max_iter = 1000, NiterMAX = 400
      double precision, parameter :: tol = 1.d-10
@@ -58,27 +55,27 @@ contains
      logical          :: recompute_jac
 
      !CALL t_bechem%start
-     ! calc val ref
 
      ! Need molecular weights
      call CKWT(iwrk, rwrk, mwt)
      invmwt(:) = 1.0/mwt(:)
 
      ! assume rho does not change
-     rho_inv = 1.d0/rho
+     !rho_inv = 1.d0/rho
    
      ! Allocate space for Jac, factorization and pivot
      if (.not. allocated(A)) then
         allocate(Jac(Nspec+1,Nspec+1))
-        !allocate(JacT(Nspec+1,Nspec+1))
         allocate(A(Nspec+1,Nspec+1))
         allocate(AT(Nspec+1,Nspec+1))
         allocate(ipvt(Nspec+1))
      end if
      
      ! start with the initial guess
-     Y = Y0
-     T = T_init
+     rY = rY0
+     T  = T_init
+     rho_inv = 1.d0/rho
+     Y  = rY(:) * rho_inv
 
      ! Initially assume Jac is wrong
      recompute_jac = .true.
@@ -96,24 +93,8 @@ contains
         ! get the temperature
         if (iter .eq. 0) then
 
-            ! recompute T to be sure
-            ! Not sure we need this though
-            !if (iE == 1) then
-            !    call get_T_given_eY(hmix,Y,iwrk,rwrk,T,ierr)
-            !else
-            !    call get_T_given_hY(hmix,Y,iwrk,rwrk,T,ierr)
-            !end if
-            !if (ierr/=0) then
-            !  print *,'bechem: H/E to T solve failed'
-            !  stop
-            !end if
-
             ! compute wdot
             call CKWYR(rho, T, Y, iwrk, rwrk, wdot)
-
-            !call CKPY(rho, T, Y, iwrk, rwrk, dum)
-            !print *, "P is ? ", dum
-            !stop
 
             ! compute C_p/v 
             if (iE == 1) then
@@ -145,12 +126,10 @@ contains
             wdot(:) = wdot(:) * mwt(:) + rhoydot_ext(:)
 
             ! Compute initial residuals
-            res_nl_init(1:Nspec) = -(Y(:) - dt*wdot(:)*rho_inv - rhs(1:Nspec))
+            res_nl_init(1:Nspec) = -(rY(:) - dt*wdot(:) - rhs(1:Nspec))
             res_nl_init(Nspec+1) = -(T - dt * Tdot - rhs(Nspec+1))
 
             res_nl = res_nl_init
-            !print *, " -- > res_nl_init ", res_nl_init
-            !print *, " "
 
 !            val_ref(:) = 1.0/(res_nl_init(:) + 1.0d-10) + 1.0d-10*res_nl_init(:)
             val_ref(:) = 1.0
@@ -169,7 +148,7 @@ contains
            print *,'     bechem: Cp = ', cp
            print *,'     bechem: density = ', rho
            print *,'     bechem: temperature = ', T
-           print *,'     bechem: Y0:',Y0
+           print *,'     bechem: rY = ',rY
            print *,"   +++++++++++++++++++++++++++++++++" 
            stop
         endif
@@ -179,6 +158,7 @@ contains
         if (rmax .le. tol) then
            print *,"       --> Newton has converged !! <--  " 
            print *,"   +++++++++++++++++++++++++++++++++" 
+           T_init = T
            exit
         endif
 
@@ -206,8 +186,6 @@ contains
         print *,"     Calling a linesearch"
         call linesearch
 
-        !Y(:) = Y(:) + dx_nl(1:Nspec)        
-        !T = T + dx_nl(1+Nspec)
      end do
 
      if (iter .ge. max_iter) then
@@ -240,20 +218,15 @@ contains
            do j=1,Nspec
               do i=1,Nspec
                  Jac(i,j) = Jac(i,j) * mwt(i) * invmwt(j)
-                ! JacT(j,i) = Jac(i,j) 
               end do
               i=Nspec+1
-              Jac(i,j) = Jac(i,j) * invmwt(j) * rho 
-              !JacT(j,i) = Jac(i,j) 
+              Jac(i,j) = Jac(i,j) * invmwt(j) 
            end do
 
            j = Nspec+1
            do i=1,Nspec
-              Jac(i,j) = Jac(i,j) * mwt(i) * rho_inv
-              !JacT(j,i) = Jac(i,j) 
+              Jac(i,j) = Jac(i,j) * mwt(i) 
            end do
-
-           !JacT(j,j) = Jac(j,j)
 
        end if
 
@@ -262,13 +235,11 @@ contains
        do j=1,Nspec+1
          do i=1,Nspec+1
             A(i,j) = -dt*Jac(i,j)
-            !AT(i,j) = -dt*JacT(i,j)
          end do
        end do
 
        do i=1,Nspec+1
           A(i,i) = (1.d0 + A(i,i))
-          !AT(i,i) = (1.d0 + AT(i,i))
        end do
 
        ! Compute transpose of NL system Jacobian
@@ -287,7 +258,7 @@ contains
          double precision :: lambda, alpha
          double precision :: T_tmp, Tdot_tmp
          double precision :: res_nl_tmp_norm
-         double precision :: Y_tmp(Nspec)
+         double precision :: Y_tmp(Nspec), rY_tmp(Nspec)
          double precision :: wdot_tmp(Nspec)
          double precision :: res_nl_tmp(Nspec+1), bound_norm(Nspec+1)
          logical          :: satisfied
@@ -301,8 +272,13 @@ contains
          alpha = 1.0d-04
          count_linesearch = 0
          do while (.not. satisfied)
-             Y_tmp(:) = Y(:) + lambda * dx_nl(1:Nspec)        
+             rY_tmp(:) = rY(:) + lambda * dx_nl(1:Nspec)        
              T_tmp = T + lambda * dx_nl(1+Nspec)
+
+             ! Compute rho and Y
+             rho     = sum(rY_tmp(:))
+             rho_inv = 1.0d0 / rho
+             Y_tmp   = rY_tmp(:) / rho
 
              ! compute wdot
              call CKWYR(rho, T_tmp, Y_tmp, iwrk, rwrk, wdot_tmp)
@@ -337,29 +313,21 @@ contains
              wdot_tmp(:) = wdot_tmp(:) * mwt(:) + rhoydot_ext(:)
 
              ! Compute residuals (a)
-             res_nl_tmp(1:Nspec) = -(Y_tmp(:) - dt * wdot_tmp(:) * rho_inv - rhs(1:Nspec))
+             res_nl_tmp(1:Nspec) = -(rY_tmp(:) - dt * wdot_tmp(:) - rhs(1:Nspec))
              res_nl_tmp(Nspec+1) = -(T_tmp - dt * Tdot_tmp - rhs(Nspec+1))
-             ! compute norm of res_nl_tmp 
-             !res_nl_tmp_norm = 0.5*NORM2(res_nl_tmp(:)*val_ref(:))**2.0
 
              ! compute norm of r + alpha * lambda * (AT:dx) (b)
              CALL compute_bound(alpha, lambda, res_nl, bound_norm)
-             !print *,"       New residual: ", res_nl_tmp(:)
-             !print *,"       Norm of new residu: ", 0.5*NORM2(res_nl_tmp)**2
              
              ! min of (b) - (a)
              res_nl_tmp_norm = minval(bound_norm(:) - res_nl_tmp(:)) 
-             !res_nl_tmp_norm = maxval(bound_norm(:) - res_nl_tmp(:)) 
-             !print *, "bound_norm(:) - res_nl_tmp(:) ", (bound_norm(:) - res_nl_tmp(:))
-             !print *, "Out condition ? ", res_nl_tmp_norm
 
              ! check if a < b and if yes then satisfied if no update lambda
-             !if ( res_nl_tmp_norm > -0.000000001) then
              if ( 0.5*NORM2(res_nl_tmp)**2 < 0.5*NORM2(bound_norm)**2) then
                      satisfied = .true.
                      res_nl(:) = res_nl_tmp(:)
-                     !dx_nl(:)  = lambda * dx_nl(:)
                      Y(:)      = Y_tmp(:)
+                     rY(:)     = rY_tmp(:)
                      T         = T_tmp
                      print *,"       *INFO: number of linesearch steps is ", count_linesearch
                      print *,"       Armijo condition: ", lambda, res_nl_tmp_norm, 0.5*NORM2(res_nl_tmp)**2, 0.5*NORM2(bound_norm)**2
@@ -377,6 +345,7 @@ contains
                  satisfied = .true.
                  res_nl(:) = res_nl_tmp(:)
                  Y(:)      = Y_tmp(:)
+                 rY(:)     = rY_tmp(:)
                  T         = T_tmp
              end if
 

@@ -114,8 +114,6 @@ contains
           call eos_get_activity_h(eos_state_k(1))
       end if
       print *, "T ", eos_state_k(1) % T
-      !eos_state_k(1) % p   = react_state_in % p
-
 
       !Compute species prod rates and correct with ext source term
       !CALL t_ck%start          
@@ -347,55 +345,46 @@ contains
       double precision, intent(in   )  :: dt 
 
       integer :: n, i, ierr
-      double precision  :: rho_init
-      double precision  :: T_init
-      double precision  :: Yguess(nspec)
-      double precision  :: Y(nspec)
+      double precision  :: rho
+      double precision  :: Temp
+      double precision  :: rYguess(nspec)
+      double precision  :: rY(nspec)
       double precision  :: hguess, eguess
       double precision  :: rhs(nspec+1)
 
 !     SDC rhs 
       print *,"   - Updating the RHS "
       do i=1,nspec
-          rhs(i) = state_kp1_j % massfrac(i) - (dtLobato * cdot_k(i) - I_k_lcl(i)) / state_k_jp1 % rho
-          !rhs(i) = state_kp1_j % massfrac(i) - (dtLobato * (cdot_k(i) - rhoydot_ext(i)) - I_k_lcl(i)) / state_k_jp1 % rho
+          rhs(i) = state_kp1_j % rho * state_kp1_j % massfrac(i) - (dtLobato * cdot_k(i) - I_k_lcl(i))
       end do
-      rhs(nspec+1) = state_kp1_j % T - (dtLobato * cdot_k(nspec+1) -  I_k_lcl(nspec+1)) !/ state_k_jp1 % rho
-      !rhs(nspec+1) = state_kp1_j % T - (dtLobato * (cdot_k(nspec+1) - rhoedot_ext) -  I_k_lcl(nspec+1)) !/ state_k_jp1 % rho
+      rhs(nspec+1) = state_kp1_j % T - (dtLobato * cdot_k(nspec+1) -  I_k_lcl(nspec+1))
 
 !     Define initial state
-      rho_init  = state_k_jp1 % rho
-      T_init    = state_k_jp1 % T
-      Yguess(:) = state_k_jp1 % massfrac(:) 
-      print *,"   - Defining the initial state (T, rho, Y(O2)) ", T_init, rho_init, Yguess(8)
+      rho        = state_k_jp1 % rho
+      Temp       = state_k_jp1 % T
+      rYguess(:) = state_k_jp1 % massfrac(:) * rho
+      print *,"   - Defining the initial state (T, rho, rhoY(O2)) ", Temp, rho, rYguess(8)
 !     ... and solve with newton iterations
       print *,"   - Call the BE solver "
       if (iE == 1) then
-          eguess    = state_k_jp1 % e
-          call bechem(Y, Yguess, eguess, rho_init, T_init, rhs, rhoedot_ext, rhoydot_ext, dtLobato, iE)
+          call bechem(rY, rYguess, rho, Temp, rhs, rhoedot_ext, rhoydot_ext, dtLobato, iE)
       else
-          hguess    = state_k_jp1 % h
-          call bechem(Y, Yguess, hguess, rho_init, T_init, rhs, rhohdot_ext, rhoydot_ext, dtLobato, iE)
+          call bechem(rY, rYguess, rho, Temp, rhs, rhohdot_ext, rhoydot_ext, dtLobato, iE)
       end if
 
 !     Output new cdot (kp1, jp1)
-      print *,"   - Updating c.kp1 ", cdot_kp1(8) 
       do i=1,nspec
-          cdot_kp1(i) = rho_init * (Y(i) - rhs(i)) / dtLobato + rhoydot_ext(i) 
-          !cdot_kp1(i) = rho_init * (Y(i) - rhs(i)) / dtLobato 
+          cdot_kp1(i) = (rY(i) - rhs(i)) / dtLobato !+ rhoydot_ext(i) 
       end do
-      !cdot_kp1(1+nspec) = cdot_k(nspec+1)
 
-
-      !state_kp1_jp1%massfrac(:) = Y(:)
-      state_kp1_jp1%massfrac(1:nspec) = state_kp1_j % massfrac(1:nspec) + (dtLobato * (cdot_kp1(1:nspec) - cdot_k(1:nspec)) + I_k_lcl(1:nspec))/ rho_init 
-      state_kp1_jp1%T                 = T_init
-      state_kp1_jp1%rho               = rho_init
+      state_kp1_jp1%massfrac(1:nspec) = (state_kp1_j % rho * state_kp1_j % massfrac(1:nspec) + dtLobato * (cdot_kp1(1:nspec) - cdot_k(1:nspec)) + I_k_lcl(1:nspec))/ rho 
+      state_kp1_jp1%T                 = Temp
+      state_kp1_jp1%rho               = rho
       if (iE == 1) then
-          state_kp1_jp1%e             = state_kp1_j % e + rhoedot_ext * dtLobato / rho_init 
+          state_kp1_jp1%e             = (state_kp1_j % e * state_kp1_j % rho + rhoedot_ext * dtLobato) / rho
           call eos_re(state_kp1_jp1)
       else
-          state_kp1_jp1%h             = state_kp1_j % h + dtLobato * rhohdot_ext / rho_init 
+          state_kp1_jp1%h             = (state_kp1_j % h * state_kp1_j % rho + dtLobato * rhohdot_ext) / rho
           call eos_rh(state_kp1_jp1)
       end if
 
@@ -413,14 +402,6 @@ contains
           end do
           cdot_kp1(nspec+1) = cdot_kp1(nspec+1)/(state_kp1_jp1 % rho * state_kp1_jp1 % cp)
       end if
-
-      !CALL t_eos%start
-      !call get_T_given_hY(hguess,Y,iwrk,rwrk,T_init,ierr)
-      !CALL t_eos%stop
-      !state_kp1_jp1%p           = state_k_jp1 % p
-      !CALL t_eos%start
-      !call ckrhoy(state_kp1_jp1%p,T_init,state_kp1_jp1%massfrac(:),iwrk,rwrk,rho_init)
-      !CALL t_eos%stop
 
   end subroutine sdc_advance_chem
 
