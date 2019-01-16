@@ -224,7 +224,7 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 
         std::chrono::time_point<std::chrono::system_clock> start, end;		
         std::chrono::duration<double> total_elapsed;
-	realtype time_init, time_out, temperature_save ;
+	realtype time_init, time_out, dummy_time, temperature_save ;
 	int flag;
 
         //FirstTimePrecond = true;
@@ -236,7 +236,7 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
         elapsed_seconds_RHS = start - start;
         elapsed_seconds_Pcond = start - start;
 
-	printf("BEG : time curr is %14.6e and dt_react is %14.6e \n", time_init, *dt_react);
+	printf("BEG : time curr is %14.6e and dt_react is %14.6e and final time should be %14.6e \n", time_init, *dt_react, time_out);
 
 	/* Get Device MemCpy of in arrays */
 	/* Get Device pointer of solution vector */
@@ -274,16 +274,15 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 		InitPartial = true;
 	    }
 	}
-	//printf("Time ? dt ? %4.16e %4.16e ", time_init, time_out);
-	flag = CVode(cvode_mem, time_out, y, &time_init, CV_NORMAL);
-	//flag = CVode(cvode_mem, time_out, y, &time_init, CV_ONE_STEP);
+	flag = CVode(cvode_mem, time_out, y, &dummy_time, CV_NORMAL);
+	//flag = CVode(cvode_mem, time_out, y, &dummy_time, CV_ONE_STEP);
 	if (check_flag(&flag, "CVode", 1)) return(1);
 
 	//CHECK THIS
 	//CVodeGetCurrentTime(cvode_mem, time);
-	*time = time_out;
-	*dt_react = *time - time_init;
-	printf("END : time curr is %14.6e and dt_react is %14.6e \n", *time, *dt_react);
+	//*time = time_out;
+	*dt_react = dummy_time - time_init;
+	printf("END : time curr is %14.6e and actual dt_react is %14.6e \n", dummy_time, *dt_react);
 
 	/* Pack data to return in main routine external */
 	std::memcpy(rY_in, yvec_d, ((NEQ+1)*NCELLS)*sizeof(realtype));

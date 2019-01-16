@@ -311,20 +311,21 @@ int main (int argc,
         amrex::Print() << "... will contain " << count_box-1 << "boxes" << std::endl;
 
         /* Solve the problem */
-	Real time_tmp, dt_incr, dt_tmp;
+	Real time_tmp, dt_incr;
 	dt_incr =  dt;
 	time_tmp = time;
 	int reInit = 1;
 	//printf("#TIME TEMPERATURE \n");
 	myfile << "#TIME TEMPERATURE P Yks \n";
 	for (int i = 0; i < ndt; ++i) {
-		dt_tmp = (i+1)* dt_incr;
 		actual_cReact(tmp_vect, tmp_src_vect, 
 				tmp_vect_energy, tmp_src_vect_energy,
 				&plo, &dt_incr, &time_tmp, &reInit);
 				//&plo, &dt_incr, &time, &reInit);
+	        // increment time with true dt_incr
+		time_tmp = time_tmp + dt_incr;
+		// fix new dt_incr to chosen value, hoping cvode will reach it
 		dt_incr = dt;
-		//time_tmp = dt_tmp;
                 //printf("--> at time : %2.8e, ",time_tmp);
 		//printf(" out state (T) is %4.4f and Ysrc(OH) is \n", tmp_vect[Ncomp], plo);
 		//printf("%2.8e %4.4f \n", time_tmp, tmp_vect[Ncomp]);
