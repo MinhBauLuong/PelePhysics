@@ -1,5 +1,6 @@
 module actual_sdc_module
 
+  use, intrinsic :: iso_c_binding
   use amrex_fort_module, only : amrex_real
   use network, only: nspec, spec_names
   use react_type_module
@@ -15,7 +16,7 @@ module actual_sdc_module
   real(amrex_real), private, allocatable :: dtLobato(:)
   integer                   :: nLobato, nsdcite
   real(amrex_real)          :: rhohdot_ext, rhoedot_ext
-  integer                   :: iE
+  integer                   :: iE, verbose
 
 ! Parameters of high order Gauss-Lobatto Lagrange weights       
   real(amrex_real), parameter :: sqrt5 = SQRT(5.0d0)
@@ -23,11 +24,11 @@ module actual_sdc_module
 
 contains
 
-  subroutine actual_reactor_init_sdc(iE_in,nLobato_in,nsdcite_in)
+  subroutine actual_reactor_init_sdc(iE_in,nLobato_in,nsdcite_in, iverbose_in)
 
       implicit none
 
-      integer, intent(in)  :: iE_in
+      integer, intent(in)  :: iE_in, iverbose_in
       integer, intent(in)  :: nLobato_in, nsdcite_in
       integer              :: i
 
@@ -43,6 +44,7 @@ contains
       iE = iE_in
       nLobato = nLobato_in
       nsdcite = nsdcite_in
+      verbose = iverbose_in
 
       allocate(eos_state_k(nLobato))
       allocate(eos_state_kp1(nLobato))
@@ -102,7 +104,7 @@ contains
       if (iE == 1) then
           eos_state_k(1) % e   = react_state_in % e
           rhoe_init(1)         = eos_state_k(1) % e  *  eos_state_k(1) % rho
-          print *, "rho, rhoe_init ", eos_state_k(1) % rho, rhoe_init(1)
+          !print *, "rho, rhoe_init ", eos_state_k(1) % rho, rhoe_init(1)
           rhoedot_ext          = react_state_in % rhoedot_ext
           call eos_re(eos_state_k(1))
           call eos_get_activity(eos_state_k(1))
@@ -113,7 +115,7 @@ contains
           call eos_rh(eos_state_k(1))
           call eos_get_activity_h(eos_state_k(1))
       end if
-      print *, "T ", eos_state_k(1) % T
+      !print *, "T ", eos_state_k(1) % T
 
       !Compute species prod rates and correct with ext source term
       !CALL t_ck%start          
@@ -153,7 +155,9 @@ contains
       print *, "    STARTING SDC LOOPS" 
       print *, "----------------------------" 
       do sdc = 1, nsdcite
-           print *,"Working on the ", sdc, " SDC iteration"
+           if (verbose .ge. 1) then
+               print *,"Working on the ", sdc, " SDC iteration"
+           end if
 
 !          write(*,'(A,I2,A)') " SDC ite ", sdc ,"  -------------------- "
 !          write(*,'(A,3(ES12.4))') "    T:",eos_state_k(1)%T, eos_state_k(2)%T, eos_state_k(3)%T 
@@ -169,7 +173,9 @@ contains
 
 !         Update the state with the correction integrals & the quadratures   
           do j=1,nLobato-1
-             print *," - Working on the ", j+1, " Lobatto node"
+             if (verbose .ge. 2) then
+                 print *," - Working on the ", j+1, " Lobatto node"
+             end if
              ! eos_state_kp1(j+1) = eos_state_k(j+1) 
               call sdc_advance_chem(eos_state_kp1(j+1), eos_state_kp1(j), eos_state_k(j+1), &
                       cdot_k(j+1,:), cdot_kp1(j+1,:), I_k(j,:), dtLobato(j), dt_react)
@@ -179,7 +185,9 @@ contains
 !          write(*,'(A,3(ES12.4))') " c.kp1(O2):",cdot_kp1(:,8)
 
 !         Copy state k+1 into k for the next iteration      
-          print *," - Update state and wdot for next iteration"
+          if (verbose .ge. 2) then
+              print *," - Update state and wdot for next iteration"
+          end if
           do j=2,nLobato
              eos_state_k(j) = eos_state_kp1(j) 
              cdot_k(j,:)    = cdot_kp1(j,:)
@@ -353,7 +361,9 @@ contains
       double precision  :: rhs(nspec+1)
 
 !     SDC rhs 
-      print *,"   - Updating the RHS "
+      if (verbose .ge. 3) then
+          print *,"   - Updating the RHS "
+      end if
       do i=1,nspec
           rhs(i) = state_kp1_j % rho * state_kp1_j % massfrac(i) - (dtLobato * cdot_k(i) - I_k_lcl(i))
       end do
@@ -363,13 +373,15 @@ contains
       rho        = state_k_jp1 % rho
       Temp       = state_k_jp1 % T
       rYguess(:) = state_k_jp1 % massfrac(:) * rho
-      print *,"   - Defining the initial state (T, rho, rhoY(O2)) ", Temp, rho, rYguess(8)
+      !print *,"   - Defining the initial state (T, rho, rhoY(O2)) ", Temp, rho, rYguess(8)
 !     ... and solve with newton iterations
-      print *,"   - Call the BE solver "
+      if (verbose .ge. 3) then
+          print *,"   - Call the BE solver "
+      end if
       if (iE == 1) then
-          call bechem(rY, rYguess, rho, Temp, rhs, rhoedot_ext, rhoydot_ext, dtLobato, iE)
+          call bechem(rY, rYguess, rho, Temp, rhs, rhoedot_ext, rhoydot_ext, dtLobato, iE, verbose)
       else
-          call bechem(rY, rYguess, rho, Temp, rhs, rhohdot_ext, rhoydot_ext, dtLobato, iE)
+          call bechem(rY, rYguess, rho, Temp, rhs, rhohdot_ext, rhoydot_ext, dtLobato, iE, verbose)
       end if
 
 !     Output new cdot (kp1, jp1)

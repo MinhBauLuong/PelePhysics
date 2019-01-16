@@ -28,7 +28,7 @@ contains
    ! NB: we should be able to get rid of these ! 
    !        dt : timestep
    !        iE : 1 (UV) // 2 (rhoH)
-   subroutine bechem(rY, rY0, rho, T_init, rhs, rhohdot_ext, rhoydot_ext, dt, iE)
+   subroutine bechem(rY, rY0, rho, T_init, rhs, rhohdot_ext, rhoydot_ext, dt, iE, iverbose)
 
      double precision, intent(out) :: rY(Nspec)
      double precision, intent(in ) :: rY0(Nspec)
@@ -38,7 +38,7 @@ contains
      double precision, intent(in ) :: rhohdot_ext
      double precision, intent(in ) :: rhoydot_ext(Nspec)
      double precision, intent(in ) :: dt
-     integer, intent(in )          :: iE
+     integer, intent(in )          :: iE, iverbose
      
      integer          :: iwrk, iter, n, ierr
      double precision :: rwrk, rmax, rho_inv, T, Tdot
@@ -80,15 +80,19 @@ contains
      ! Initially assume Jac is wrong
      recompute_jac = .true.
     
-     print *,"   +++++++++++++++++++++++++++++++++" 
-     print *,"     STARTING NEWTON ITERATIONS     "
+     if (iverbose .ge. 4) then
+         print *,"   +++++++++++++++++++++++++++++++++" 
+         print *,"     STARTING NEWTON ITERATIONS     "
+     end if
 
      ! maximum number of iterations is max_iter
      do iter = 0, max_iter
         ! Newton's method: iteratively solve J(x_{n+1} - x_n) = -F(x_n)
         ! F(x) is given by (I - dt*wdot/rho - rhs/rho)
         
-        print *,"     Working on the ", iter, " iteration (T, Y(O2)) ", T, Y(8)
+        if (iverbose .ge. 5) then
+            print *,"     Working on the ", iter, " iteration (T, Y(O2)) ", T, Y(8)
+        end if
 
         ! get the temperature
         if (iter .eq. 0) then
@@ -137,7 +141,9 @@ contains
 
         rmax = maxval(abs(res_nl))
         res_nl_norm = 0.5*NORM2(res_nl(:)*val_ref(:))**2.0
-        print *,"     L2 residual, Max residual: ", res_nl_norm, rmax
+        if (iverbose .ge. 5) then
+            print *,"     L2 residual, Max residual: ", res_nl_norm, rmax
+        end if
 
         if (isnan(rmax)) then
            print *," "
@@ -156,8 +162,10 @@ contains
         ! if we have reached the desired tolerance then we are done
         !if (res_nl_norm .le. tol) then
         if (rmax .le. tol) then
-           print *,"       --> Newton has converged !! <--  " 
-           print *,"   +++++++++++++++++++++++++++++++++" 
+           if (iverbose .ge. 4) then
+               print *,"       --> Newton has converged !! <--  " 
+               print *,"   +++++++++++++++++++++++++++++++++" 
+           end if
            T_init = T
            exit
         endif
@@ -183,7 +191,9 @@ contains
         
         !     solve for the difference x = x_{n+1} - x_n
         !     so the next iterate is given by x_{n+1} = x_n + x
-        print *,"     Calling a linesearch"
+        if (iverbose .ge. 5) then
+            print *,"     Calling a linesearch"
+        end if
         call linesearch
 
      end do
@@ -329,19 +339,25 @@ contains
                      Y(:)      = Y_tmp(:)
                      rY(:)     = rY_tmp(:)
                      T         = T_tmp
-                     print *,"       *INFO: number of linesearch steps is ", count_linesearch
-                     print *,"       Armijo condition: ", lambda, res_nl_tmp_norm, 0.5*NORM2(res_nl_tmp)**2, 0.5*NORM2(bound_norm)**2
-                     print *," "
+                     if (iverbose .ge. 6) then
+                         print *,"       *INFO: number of linesearch steps is ", count_linesearch
+                         print *,"       Armijo condition: ", lambda, res_nl_tmp_norm, 0.5*NORM2(res_nl_tmp)**2, 0.5*NORM2(bound_norm)**2
+                         print *," "
+                     end if
              else
                      lambda =  lambda*0.5
                      count_linesearch = count_linesearch + 1
-                     print *,"       Armijo condition: ", lambda, res_nl_tmp_norm, 0.5*NORM2(res_nl_tmp)**2, 0.5*NORM2(bound_norm)**2
+                     if (iverbose .ge. 6) then
+                         print *,"       Armijo condition: ", lambda, res_nl_tmp_norm, 0.5*NORM2(res_nl_tmp)**2, 0.5*NORM2(bound_norm)**2
+                     end if
              end if
 
              if (count_linesearch > max_linesearch) then
-                 print *,"       *Max linesearch reached !! " 
-                 print *,'       linesearch: itmax =',max_linesearch
-                 print *,'       linesearch: lambda =', lambda*2.0d0
+                 if (iverbose .ge. 6) then
+                     print *,"       *Max linesearch reached !! " 
+                     print *,'       linesearch: itmax =',max_linesearch
+                     print *,'       linesearch: lambda =', lambda*2.0d0
+                 end if
                  satisfied = .true.
                  res_nl(:) = res_nl_tmp(:)
                  Y(:)      = Y_tmp(:)

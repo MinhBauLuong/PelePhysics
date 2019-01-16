@@ -4,9 +4,11 @@ module reactor_module
   use network
   use eos_module
   use react_type_module
+#if defined(USE_DVODE) || defined(USE_FORTRAN_CVODE)
   use actual_reactor_module
+#endif
 #ifdef USE_SDC_FORTRAN
-  use actual_sdc_module, only : actual_reactor_init_sdc, actual_reactor_close_sdc, actual_react_sdc
+  use actual_sdc_module !, only : actual_reactor_init_sdc, actual_reactor_close_sdc, actual_react_sdc
 #endif
 
   implicit none
@@ -15,6 +17,7 @@ module reactor_module
 
 contains
 
+#ifdef USE_DVODE
   !Original DVODE version
   subroutine reactor_init(iE) bind(C, name="reactor_init")
 
@@ -30,6 +33,7 @@ contains
     reactor_initialized = .true.
 
   end subroutine reactor_init
+#endif
 
 #ifdef USE_SUNDIALS3x4x
   ! Call to CVODE: only in Fuego 
@@ -52,18 +56,18 @@ contains
 
 #ifdef USE_SDC_FORTRAN
   ! Call to SDC: only in Fuego 
-  subroutine reactor_init_sdc(iE, nLobato, nsdcite) bind(C, name="reactor_init_sdc")
+  subroutine reactor_init_sdc(iE, nLobato, nsdcite, iverbose) bind(C, name="reactor_init_sdc")
 
     use, intrinsic :: iso_c_binding
 
     implicit none
     integer,  intent(in   ) :: nLobato, nsdcite 
-    integer,  intent(in   ) :: iE
+    integer,  intent(in   ) :: iE, iverbose
 
     write(*,*) "Using SDC integrator for chemistry"
 
     !$omp parallel
-    call actual_reactor_init_sdc(iE, nLobato, nsdcite)
+    call actual_reactor_init_sdc(iE, nLobato, nsdcite, iverbose)
     !$omp end parallel
     
     reactor_initialized = .true.
@@ -72,6 +76,7 @@ contains
 #endif
 
 
+#if defined(USE_DVODE) || defined(USE_FORTRAN_CVODE)
   subroutine reactor_close() bind(C, name="reactor_close")
 
     implicit none
@@ -81,6 +86,7 @@ contains
     reactor_initialized = .false.
 
   end subroutine reactor_close
+#endif
 
 
 #ifdef USE_SDC_FORTRAN
@@ -96,6 +102,7 @@ contains
 #endif
 
 
+#if defined(USE_DVODE) || defined(USE_FORTRAN_CVODE)
   function ok_to_react(state)
 
     implicit none
@@ -105,7 +112,9 @@ contains
     ok_to_react = actual_ok_to_react(state)
 
   end function ok_to_react
+#endif
 
+#ifdef USE_DVODE
   !Original DVODE version
   function react(react_state_in, react_state_out, dt_react, time)
 
@@ -133,6 +142,7 @@ contains
     endif
 
   end function react
+#endif
 
 #ifdef USE_SUNDIALS3x4x
   ! Call to CVODE. Only with Fuego
@@ -182,15 +192,15 @@ contains
 
     !write(*,*) "Using sdc integration"
 
-    if ( ok_to_react(react_state_in) ) then
+!    if ( ok_to_react(react_state_in) ) then
 
        react_sdc = actual_react_sdc(react_state_in, react_state_out, dt_react, time)
 
-    else
+!    else
 
-       react_sdc = actual_react_null(react_state_in, react_state_out, dt_react, time)
+!       react_sdc = actual_react_null(react_state_in, react_state_out, dt_react, time)
 
-    endif
+!    endif
 
   end function react_sdc
 #endif

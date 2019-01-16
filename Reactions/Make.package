@@ -6,3 +6,6 @@ endif
 ifeq ($(USE_FORTRAN_CVODE), TRUE)
     F90EXE_sources += reactor.F90
 endif
+ifeq ($(USE_SDC_FORTRAN), TRUE)
+    F90EXE_sources += reactor.F90
+endif
