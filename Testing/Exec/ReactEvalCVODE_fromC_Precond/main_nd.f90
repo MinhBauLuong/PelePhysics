@@ -288,9 +288,6 @@ contains
              !rhoE src ext
              rhoEs(i,j,k,1) = Y_forcing_in(i+1,nspec+1)
 
-             print *, "rho, e_init, rhoe_init ", eos_state % rho, eos_state % h, rhoE(i,j,k,1)
-             print *, "Y(O2)", eos_state % massfrac(8)
-
           end do
        end do
     end do
