@@ -99,6 +99,9 @@ contains
 
             ! compute wdot
             call CKWYR(rho, T, Y, iwrk, rwrk, wdot)
+            ! multiply by molecular weight to get the right units
+            wdot(:) = wdot(:) * mwt(:) + rhoydot_ext(:)
+           ! wdot(:) = wdot(:) / 1000.0
 
             ! compute C_p/v 
             if (iE == 1) then
@@ -126,8 +129,7 @@ contains
                 end do
                 Tdot = Tdot * cp_inv * rho_inv
             end if
-            ! multiply by molecular weight to get the right units
-            wdot(:) = wdot(:) * mwt(:) + rhoydot_ext(:)
+
 
             ! Compute initial residuals
             res_nl_init(1:Nspec) = -(rY(:) - dt*wdot(:) - rhs(1:Nspec))
@@ -292,6 +294,9 @@ contains
 
              ! compute wdot
              call CKWYR(rho, T_tmp, Y_tmp, iwrk, rwrk, wdot_tmp)
+             ! multiply by molecular weight to get the right units
+             wdot_tmp(:) = wdot_tmp(:) * mwt(:) + rhoydot_ext(:)
+             !wdot_tmp(:) = wdot_tmp(:) / 1000.0
 
              ! compute C_p/v 
              if (iE == 1) then
@@ -319,8 +324,6 @@ contains
                  end do
                  Tdot_tmp = Tdot_tmp * cp_inv * rho_inv
              end if
-             ! multiply by molecular weight to get the right units
-             wdot_tmp(:) = wdot_tmp(:) * mwt(:) + rhoydot_ext(:)
 
              ! Compute residuals (a)
              res_nl_tmp(1:Nspec) = -(rY_tmp(:) - dt * wdot_tmp(:) - rhs(1:Nspec))

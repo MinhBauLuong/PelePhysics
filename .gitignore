@@ -17,6 +17,12 @@ LiDryer.c_*
 1D_y_7530*
 1D_y_5105*
 *.png
+*NORM.*
+fort.*
+*plot_*
+test.py
+extract_*py
+convrate_*
 
 # AMReX build directories
 d/
@@ -25,6 +31,10 @@ f/
 extern.f90
 AMReX_buildInfo.cpp
 tmp_build_dir/
+TEST*/
+SERIAL/
+LOB2*/
+LOB3*/
 
 # Executable
 *.ex

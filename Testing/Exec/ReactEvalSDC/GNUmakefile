@@ -25,7 +25,7 @@ FUEGO_GAS  = TRUE
 #######################
 #include ./Make.cvodeFiniterface 
 
-USE_DVODE=TRUE
+USE_DVODE=FALSE
 ifeq ($(USE_DVODE), TRUE)
     DEFINES  += -DUSE_DVODE
 endif

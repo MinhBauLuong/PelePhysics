@@ -16,7 +16,7 @@ module actual_sdc_module
   real(amrex_real), private, allocatable :: dtLobato(:)
   integer                   :: nLobato, nsdcite
   real(amrex_real)          :: rhohdot_ext, rhoedot_ext
-  integer                   :: iE, verbose
+  integer                   :: iE, verbose, iStiff
 
 ! Parameters of high order Gauss-Lobatto Lagrange weights       
   real(amrex_real), parameter :: sqrt5 = SQRT(5.0d0)
@@ -104,7 +104,6 @@ contains
       if (iE == 1) then
           eos_state_k(1) % e   = react_state_in % e
           rhoe_init(1)         = eos_state_k(1) % e  *  eos_state_k(1) % rho
-          !print *, "rho, rhoe_init ", eos_state_k(1) % rho, rhoe_init(1)
           rhoedot_ext          = react_state_in % rhoedot_ext
           call eos_re(eos_state_k(1))
           call eos_get_activity(eos_state_k(1))
@@ -115,7 +114,14 @@ contains
           call eos_rh(eos_state_k(1))
           call eos_get_activity_h(eos_state_k(1))
       end if
-      !print *, "T ", eos_state_k(1) % T
+
+!     Determine if the system to solve is stiff 
+      iStiff = 1
+      if (eos_state_k(1) % T < 500.0) then
+              iStiff = 1
+      else if (eos_state_k(1) % T > 3000.0) then
+              iStiff = 1
+      end if
 
       !Compute species prod rates and correct with ext source term
       !CALL t_ck%start          
@@ -124,6 +130,7 @@ contains
       !External forces for species
       rhoydot_ext(1:nspec) = react_state_in % rhoydot_ext(1:nspec)
       cdot_k(1,1:nspec) = cdot_k(1,1:nspec)* molecular_weight(1:nspec) + rhoydot_ext(:)
+      !cdot_k(1,1:nspec) = cdot_k(1,1:nspec) / 1000.0
       !Compute T source term
       if (iE == 1) then
           cdot_k(1,nspec+1) = rhoedot_ext
@@ -142,6 +149,7 @@ contains
 !     Initialize the SDC loop by setting all Gauss-Lobatto points with the initial state (1)       
       do j=2,nLobato
           eos_state_k(j)   = eos_state_k(1)
+          ! this is useless will need to remove
           if (iE == 1) then
               rhoe_init(j)     = rhoe_init(1)
           else
@@ -151,18 +159,18 @@ contains
       end do
 
 !     Start the loop
-      print *, "----------------------------" 
-      print *, "    STARTING SDC LOOPS" 
-      print *, "----------------------------" 
+      if (verbose .ge. 1) then
+          print *, "----------------------------" 
+          print *, "    STARTING SDC LOOPS" 
+          print *, "----------------------------" 
+      end if
       do sdc = 1, nsdcite
            if (verbose .ge. 1) then
-               print *,"Working on the ", sdc, " SDC iteration"
-           end if
+               write(*,'(A,I2,A)') " SDC ite ", sdc ,"  -------------------- "
 
-!          write(*,'(A,I2,A)') " SDC ite ", sdc ,"  -------------------- "
-!          write(*,'(A,3(ES12.4))') "    T:",eos_state_k(1)%T, eos_state_k(2)%T, eos_state_k(3)%T 
-!          write(*,'(A,3(ES12.4))') "  rho:",eos_state_k(1)%rho, eos_state_k(2)%rho, eos_state_k(3)%rho 
-!          write(*,'(A,3(ES12.4))') "Y(O2):",eos_state_k(1)%massfrac(8), eos_state_k(2)%massfrac(8), eos_state_k(3)%massfrac(8)      
+               write(*,'(A,3(ES16.8))') "    T:",eos_state_k(1)%T, eos_state_k(2)%T, eos_state_k(3)%T 
+               write(*,'(A,3(ES16.8))') "  rho:",eos_state_k(1)%rho, eos_state_k(2)%rho, eos_state_k(3)%rho 
+           end if
 
 !         First Lobatto point of each sdc iteration is always the same (previous dt)
           eos_state_kp1(1)     = eos_state_k(1)
@@ -176,44 +184,60 @@ contains
              if (verbose .ge. 2) then
                  print *," - Working on the ", j+1, " Lobatto node"
              end if
-             ! eos_state_kp1(j+1) = eos_state_k(j+1) 
-              call sdc_advance_chem(eos_state_kp1(j+1), eos_state_kp1(j), eos_state_k(j+1), &
-                      cdot_k(j+1,:), cdot_kp1(j+1,:), I_k(j,:), dtLobato(j), dt_react)
+             call sdc_advance_chem(eos_state_kp1(j+1), eos_state_kp1(j), eos_state_k(j+1), &
+                      cdot_k(j,:), cdot_kp1(j,:), cdot_k(j+1,:), cdot_kp1(j+1,:), &
+                      I_k(j,:), j)
           end do
-!          write(*,'(A,3(ES12.4))') "   I_k(O2):",I_k(:,8)
-!          write(*,'(A,3(ES12.4))') "   c.k(O2):",cdot_k(:,8)
-!          write(*,'(A,3(ES12.4))') " c.kp1(O2):",cdot_kp1(:,8)
+
+          if (verbose .ge. 2) then
+          !   Only works for ndodecane wang !
+              write(*,'(A,3(ES16.8))') "   I_k(O2):",I_k(:,8)
+              write(*,'(A,3(ES16.8))') "   c.k(O2):",cdot_k(:,8)
+              write(*,'(A,3(ES16.8))') " c.kp1(O2):",cdot_kp1(:,8)
+          end if
 
 !         Copy state k+1 into k for the next iteration      
           if (verbose .ge. 2) then
               print *," - Update state and wdot for next iteration"
           end if
-          do j=2,nLobato
-             eos_state_k(j) = eos_state_kp1(j) 
-             cdot_k(j,:)    = cdot_kp1(j,:)
-          end do
-          print *," "
-          print *," "
 
+          do j=2,nLobato
+              if (verbose .ge. 3) then
+                  write(*,'(A,3(ES16.8))') "    deltaT (on each nLobatto) :",eos_state_k(j)%T - eos_state_kp1(j)%T
+              end if
+              eos_state_k(j) = eos_state_kp1(j) 
+              cdot_k(j,:)    = cdot_kp1(j,:)
+          end do
+
+          if (verbose .ge. 1) then
+              write(*,'(A,3(ES16.8))') "    T (end):",eos_state_kp1(1)%T, eos_state_kp1(2)%T, eos_state_kp1(3)%T 
+              write(*,'(A,3(ES16.8))') "        rho:",eos_state_kp1(1)%rho, eos_state_kp1(2)%rho, eos_state_kp1(3)%rho 
+              print *," "
+              print *," "
+          end if
       end do
 
 !     Update out state      
       react_state_out % rho     = eos_state_kp1(nLobato)%rho
       react_state_out % rhoY(:) = react_state_out % rho * eos_state_kp1(nLobato)%massfrac(:)
       react_state_out % T = eos_state_kp1(nLobato) % T
+      react_state_out % e = eos_state_kp1(nLobato) % e 
+      react_state_out % h = eos_state_kp1(nLobato) % h
       if (iE == 1) then
-          react_state_out % e = eos_state_kp1(nLobato) % e
+          !react_state_out % e = eos_state_kp1(nLobato) % e
           react_state_out % rhoedot_ext = react_state_in % rhoedot_ext
       else
-          react_state_out % h = eos_state_kp1(nLobato) % h
+          !react_state_out % h = eos_state_kp1(nLobato) % h
           react_state_out % rhohdot_ext = react_state_in % rhohdot_ext
       end if
       react_state_out % rhoydot_ext(1:nspec) = react_state_in % rhoydot_ext(1:nspec)
 
 
+!     Get a sense of cell difficulty 
       actual_react_sdc%reactions_succesful = .true.
       actual_react_sdc%cost_value = 1.0 
 
+!     Timers 
       !CALL t_total%stop
       !CALL t_total%norm(t_total)
       !CALL t_bechem%norm(t_total)
@@ -335,9 +359,11 @@ contains
   end subroutine compute_quadrature
 
 
-  subroutine sdc_advance_chem(state_kp1_jp1, state_kp1_j, state_k_jp1, cdot_k, cdot_kp1, I_k_lcl, dtLobato, dt)
+  subroutine sdc_advance_chem(state_kp1_jp1, state_kp1_j, state_k_jp1, cdot_k_j, cdot_kp1_j, &
+                              cdot_k_jp1, cdot_kp1_jp1, I_k_lcl, nlobato)
 
       use bechem_module, only: bechem
+      use chemistry_module, only : molecular_weight
       use eos_module
       !include 'spec.h'
 
@@ -346,73 +372,116 @@ contains
       type(eos_t),   intent(inout  ) :: state_kp1_jp1
       type(eos_t),   intent(in     ) :: state_kp1_j
       type(eos_t),   intent(in     ) :: state_k_jp1
-      double precision, intent(in   )  :: cdot_k(nspec+1)
-      double precision, intent(out  )  :: cdot_kp1(nspec+1)
-      double precision, intent(in   )  :: I_k_lcl(nspec+1)
-      double precision, intent(in   )  :: dtLobato 
-      double precision, intent(in   )  :: dt 
+      double precision, intent(in  ) :: cdot_k_j(nspec+1)
+      double precision, intent(in  ) :: cdot_kp1_j(nspec+1)
+      double precision, intent(in  ) :: cdot_k_jp1(nspec+1)
+      double precision, intent(out ) :: cdot_kp1_jp1(nspec+1)
+      double precision, intent(in  ) :: I_k_lcl(nspec+1)
+      !double precision, intent(in  ) :: dtLobato 
+      !double precision, intent(in  ) :: dt 
+      integer, intent(in  )          :: nlobato
 
       integer :: n, i, ierr
-      double precision  :: rho
-      double precision  :: Temp
+      double precision  :: rho, Temp
+      double precision  :: dtLobato_lcl
       double precision  :: rYguess(nspec)
       double precision  :: rY(nspec)
       double precision  :: hguess, eguess
       double precision  :: rhs(nspec+1)
 
+      dtLobato_lcl = dtLobato(nlobato)
+
 !     SDC rhs 
       if (verbose .ge. 3) then
           print *,"   - Updating the RHS "
       end if
-      do i=1,nspec
-          rhs(i) = state_kp1_j % rho * state_kp1_j % massfrac(i) - (dtLobato * cdot_k(i) - I_k_lcl(i))
-      end do
-      rhs(nspec+1) = state_kp1_j % T - (dtLobato * cdot_k(nspec+1) -  I_k_lcl(nspec+1))
+      if (iStiff == 1) then
+          do i=1,nspec
+              rhs(i) = state_kp1_j % rho * state_kp1_j % massfrac(i) - (dtLobato_lcl * cdot_k_jp1(i) - I_k_lcl(i))
+          end do
+          rhs(nspec+1) = state_kp1_j % T - (dtLobato_lcl * cdot_k_jp1(nspec+1) -  I_k_lcl(nspec+1))
+      else
+          do i=1,nspec
+              rhs(i) = state_kp1_j % rho * state_kp1_j % massfrac(i)  + dtLobato_lcl * (cdot_kp1_j(i) - cdot_k_j(i)) + I_k_lcl(i)
+          end do
+          rhs(nspec+1) = state_kp1_j % T + dtLobato_lcl * (cdot_kp1_j(nspec+1) - cdot_k_j(nspec+1)) +  I_k_lcl(nspec+1)
+      end if
 
 !     Define initial state
       rho        = state_k_jp1 % rho
       Temp       = state_k_jp1 % T
-      rYguess(:) = state_k_jp1 % massfrac(:) * rho
-      !print *,"   - Defining the initial state (T, rho, rhoY(O2)) ", Temp, rho, rYguess(8)
+
 !     ... and solve with newton iterations
-      if (verbose .ge. 3) then
-          print *,"   - Call the BE solver "
-      end if
-      if (iE == 1) then
-          call bechem(rY, rYguess, rho, Temp, rhs, rhoedot_ext, rhoydot_ext, dtLobato, iE, verbose)
+      if (iStiff == 1) then
+            if (verbose .ge. 3) then
+                print *,"   - Call the BE solver (iStiff == 1) "
+            end if
+            rYguess(:) = state_k_jp1 % massfrac(:) * rho
+            if (iE == 1) then
+                call bechem(rY, rYguess, rho, Temp, rhs, rhoedot_ext, rhoydot_ext, dtLobato_lcl, iE, verbose)
+            else
+                call bechem(rY, rYguess, rho, Temp, rhs, rhohdot_ext, rhoydot_ext, dtLobato_lcl, iE, verbose)
+            end if
+!     ... or simple explicit BE scheme
       else
-          call bechem(rY, rYguess, rho, Temp, rhs, rhohdot_ext, rhoydot_ext, dtLobato, iE, verbose)
+            if (verbose .ge. 3) then
+                print *,"   - Simple BE solve (iStiff == 0) "
+            end if
+            do i=1,nspec
+                rY(i) = rhs(i)
+            end do
+            rho = sum(rY(:))
+            Temp = rhs(1+nspec)
       end if
 
-!     Output new cdot (kp1, jp1)
-      do i=1,nspec
-          cdot_kp1(i) = (rY(i) - rhs(i)) / dtLobato !+ rhoydot_ext(i) 
-      end do
-
-      state_kp1_jp1%massfrac(1:nspec) = (state_kp1_j % rho * state_kp1_j % massfrac(1:nspec) + dtLobato * (cdot_kp1(1:nspec) - cdot_k(1:nspec)) + I_k_lcl(1:nspec))/ rho 
+!     Update output state (kp1, jp1)
+      state_kp1_jp1%massfrac(1:nspec) = rY(:) / rho
       state_kp1_jp1%T                 = Temp
       state_kp1_jp1%rho               = rho
+      print *, Temp, state_kp1_jp1%T
       if (iE == 1) then
-          state_kp1_jp1%e             = (state_kp1_j % e * state_kp1_j % rho + rhoedot_ext * dtLobato) / rho
+          !state_kp1_jp1%e             = (rhoe_init(1) + rhoedot_ext * dt) / rho
+          state_kp1_jp1%e             = (rhoe_init(1) + rhoedot_ext * sum(dtLobato(1:nlobato))) / rho
+          print *, state_kp1_j % rho, rho
           call eos_re(state_kp1_jp1)
+          if (iStiff == 0) then
+              call eos_get_activity(state_kp1_jp1)
+          end if
       else
-          state_kp1_jp1%h             = (state_kp1_j % h * state_kp1_j % rho + dtLobato * rhohdot_ext) / rho
+          !state_kp1_jp1%h             = (rhoh_init(1) + dt * rhohdot_ext) / rho
+          state_kp1_jp1%h             = (rhoh_init(1) + rhohdot_ext * sum(dtLobato(1:nlobato))) / rho
           call eos_rh(state_kp1_jp1)
+          if (iStiff == 0) then
+              call eos_get_activity_h(state_kp1_jp1)
+          end if
+      end if
+      print *, Temp, state_kp1_jp1%T
+
+
+!     Output new cdot (kp1, jp1)
+      if (iStiff == 1) then
+          do i=1,nspec
+              cdot_kp1_jp1(i) = (rY(i) - rhs(i)) / dtLobato_lcl
+          end do
+      else
+          call ckwc(state_kp1_jp1 % T, state_kp1_jp1 % Acti, iwrk, rwrk, cdot_kp1_jp1(1:nspec))
+          cdot_kp1_jp1(1:nspec) = cdot_kp1_jp1(1:nspec)* molecular_weight(1:nspec) + rhoydot_ext(:)
+          !cdot_kp1_jp1(1:nspec) = cdot_kp1_jp1(1:nspec) / 1000.0
       end if
 
       !Compute T source term
       if (iE == 1) then
-          cdot_kp1(nspec+1) = rhoedot_ext
+          cdot_kp1_jp1(nspec+1) = rhoedot_ext
           do n=1,nspec
-              cdot_kp1(nspec+1) = cdot_kp1(nspec+1) - state_kp1_jp1 % ei(n)*cdot_kp1(n)
+              cdot_kp1_jp1(nspec+1) = cdot_kp1_jp1(nspec+1) - state_kp1_jp1 % ei(n)*cdot_kp1_jp1(n)
           end do
-          cdot_kp1(nspec+1) = cdot_kp1(nspec+1)/(state_kp1_jp1 % rho * state_kp1_jp1 % cv)
+          cdot_kp1_jp1(nspec+1) = cdot_kp1_jp1(nspec+1)/(state_kp1_jp1 % rho * state_kp1_jp1 % cv)
       else
-          cdot_kp1(nspec+1) = rhohdot_ext
+          cdot_kp1_jp1(nspec+1) = rhohdot_ext
           do n=1,nspec
-              cdot_kp1(nspec+1) = cdot_kp1(nspec+1) - state_kp1_jp1 % hi(n)*cdot_kp1(n)
+              cdot_kp1_jp1(nspec+1) = cdot_kp1_jp1(nspec+1) - state_kp1_jp1 % hi(n)*cdot_kp1_jp1(n)
           end do
-          cdot_kp1(nspec+1) = cdot_kp1(nspec+1)/(state_kp1_jp1 % rho * state_kp1_jp1 % cp)
+          cdot_kp1_jp1(nspec+1) = cdot_kp1_jp1(nspec+1)/(state_kp1_jp1 % rho * state_kp1_jp1 % cp)
       end if
 
   end subroutine sdc_advance_chem

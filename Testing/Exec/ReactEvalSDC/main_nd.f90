@@ -8,7 +8,7 @@ module main_module
   real(amrex_real), dimension(:,:), allocatable :: Y_in, Y_forcing_in
   real(amrex_real), dimension(:), allocatable :: temp
   real(amrex_real)                            :: pressure
-  integer :: nlin, iE
+  integer :: nlin, iE_quienaqun
 
 contains
 
@@ -27,9 +27,9 @@ contains
 
     real (kind=dp_t) :: small_temp = 1.d-200
     real (kind=dp_t) :: small_dens = 1.d-200
-    integer :: nLobato, nsdcite 
+    integer :: numLobato, numsdcite 
 
-    iE = iE_in
+    iE_quienaqun = iE_in
 
     ! initialize the external runtime parameters in
     ! extern_probin_module
@@ -41,9 +41,9 @@ contains
 
     call transport_init()
 
-    nLobato = 2
-    nsdcite = 2
-    call reactor_init_sdc(iE, nLobato, nsdcite)
+    numLobato = 2
+    numsdcite = 50
+    call reactor_init_sdc(iE_quienaqun, numLobato, numsdcite, 10)
 
   end subroutine extern_init
 
@@ -96,6 +96,7 @@ contains
     do i = 1, namlen
        probin(i:i) = char(name(i))
     end do
+    print *, " "
     print *, "Initializing from output txt file ",probin(1:namlen)
 
     ! read in the file
@@ -120,15 +121,21 @@ contains
     ! Todo
     pressure = 1013250.d0
     !pressure = 15000000.d0
+    print *, sum(Y_in(1,:))
 
     close (unit=49)
 
     ! Conversion MKS to CGS for PelePhys
     !! nspec + 1 is energy which here is enthalpy !!
     DO i = 1, nlin
-      Y_forcing_in(i,1:nspec) = Y_forcing_in(i,1:nspec)*1.d-3
-      Y_forcing_in(i,nspec+1) = Y_forcing_in(i,nspec+1)*10.0
+      Y_forcing_in(i,1:nspec) = 0.0d0 !Y_forcing_in(i,1:nspec)*1.d-3
+      Y_forcing_in(i,nspec+1) = 0.0d0 !Y_forcing_in(i,nspec+1)*10.0
     END DO
+
+    if (Y_forcing_in(i,nspec+1) == 0.0) then
+        print *, "NO EXT SOURCE TERM"
+    end if
+
     CALL flush(6)
 
   end subroutine read_data_from_txt
@@ -160,6 +167,8 @@ contains
 
     ! CGS UNITS
 
+    !print *, "In initialize_data"
+
     do k = lo(3),hi(3)
        do j = lo(2),hi(2)
           do i = lo(1),hi(1)
@@ -176,9 +185,8 @@ contains
              ! rhoY(:nspec) = rhoY, rhoY(nspec+1) = nrg, rhoY(nspec+2) = T
              rhoY(i,j,k,1:nspec) = eos_state % massfrac * eos_state % rho
              ! full enthalpy mode
-             if (iE == 1) then
+             if (iE_quienaqun == 1) then
                  rhoY(i,j,k,nspec+1) = eos_state % e 
-                 !print *, rhoY(i,j,k,nspec+1)
              else
                  rhoY(i,j,k,nspec+1) = eos_state % h 
              end if
@@ -194,6 +202,7 @@ contains
     end do
 
     call destroy(eos_state)
+    CALL flush(6)
 
   end subroutine initialize_data
 
@@ -255,7 +264,7 @@ contains
              rhoY(i,j,k,1:nspec) = eos_state % massfrac * eos_state % rho
              ! full enthalpy mode
              !stop 'Full H mode not allowed when data init by hand'
-             if (iE == 1) then
+             if (iE_quienaqun == 1) then
                  rhoY(i,j,k,nspec+1) = eos_state % e
              else
                  rhoY(i,j,k,nspec+1) = eos_state % h
@@ -311,7 +320,7 @@ contains
     integer          :: istop 
     real(c_double)   :: dt_react_tmp, dt_react_incr, time_tmp
 
-    type (react_t)          :: react_state_in !, react_state_out
+    type (react_t)          :: react_state_in 
     type (reaction_stat_t)  :: stat
 
     call build(react_state_in)
@@ -325,10 +334,10 @@ contains
                 write(*,*) "Dealing with cell ", i,j,k
                 write(*,*) ""
 
-                if (iE == 1) then
+                !print *, "iE is ", iE_quienaqun
+                if (iE_quienaqun == 1) then
                     react_state_in %              e = mold(i,j,k,nspec+1)
                     react_state_in %    rhoedot_ext = ysrc(i,j,k,nspec+1)
-                    print *, react_state_in %              e, react_state_in %    rhoedot_ext
                 else
                     react_state_in %              h = mold(i,j,k,nspec+1)
                     react_state_in %    rhohdot_ext = ysrc(i,j,k,nspec+1)
@@ -350,9 +359,11 @@ contains
                 do ii= 1, ndt
                         !dt_react_tmp   = ii* dt_react_incr
                         stat           = react_sdc(react_state_in, react_state_in, dt_react_incr, time)
-                        time_tmp       = time_tmp  + dt_react_incr
+                        !time_tmp       = time_tmp  + dt_react_incr
+                        time_tmp       = time  + ii*dt_react_incr
                         rho            = sum(react_state_in % rhoY(1:nspec))
-                        write(12,*) time_tmp, react_state_in % T, react_state_in %e, react_state_in %h, react_state_in % p, react_state_in %rho, react_state_in % rhoY(1:nspec)/rho
+                        !write(12,*) time_tmp, react_state_in % T, react_state_in %e, react_state_in %h, react_state_in % p, react_state_in %rho, react_state_in % rhoY(1:nspec)/rho
+                        write(12,'(200(ES30.16,1X))') time_tmp, react_state_in % T, react_state_in %e, react_state_in %h, react_state_in % p, react_state_in %rho, MAX(react_state_in % rhoY(1:nspec), 1.0d-60)
                 end do
                 CALL flush(12)
 
@@ -362,8 +373,6 @@ contains
                 mnew(i,j,k,1:nspec)             = react_state_in % rhoY(1:nspec)
                 rho                             = sum(mnew(i,j,k,1:nspec))
                 mnew(i,j,k,1:nspec)             = mnew(i,j,k,1:nspec)/rho
-                !write(*,*) "T in cell ", react_state_in % T
-                !write(*,*) "Y in cell ", mnew(i,j,k,1:nspec)
                 !if (istop.eq.1) then
                 !        stop
                 !end if
