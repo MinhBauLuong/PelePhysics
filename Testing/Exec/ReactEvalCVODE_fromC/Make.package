@@ -1,3 +1,0 @@
-f90EXE_sources += main_nd.f90
-CEXE_sources += main.cpp
-
