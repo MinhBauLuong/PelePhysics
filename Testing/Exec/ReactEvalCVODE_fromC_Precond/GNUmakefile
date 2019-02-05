@@ -25,6 +25,7 @@ endif
 
 USE_SUNDIALS_3x4x=TRUE
 #CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/instdir/lib/ 
+CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/cvode-4.0.2/instdir/lib/
 
 USE_KLU = FALSE
 ifeq ($(USE_KLU), TRUE)
