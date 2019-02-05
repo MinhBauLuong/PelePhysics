@@ -54,7 +54,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	int neq_tot;
 
 	ckindx_(&iwrk,&rwrk,&mm,&NEQ,&ii,&nfit);
-        if (iverbose > 1) {
+        if (iverbose > 0) {
 	    printf("Nb of spec is %d \n", NEQ);
 	}
 
@@ -64,7 +64,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	NCELLS         = *Ncells;
         neq_tot        = (NEQ + 1) * NCELLS;
 
-        if (iverbose > 1) {
+        if (iverbose > 0) {
 	    printf("Ncells in one solve ? %d\n",NCELLS);
 	}
 
@@ -109,8 +109,8 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	flag = CVodeSVtolerances(cvode_mem, reltol, atol);
 	if (check_flag(&flag, "CVodeSVtolerances", 1)) return(1);
 
-	//flag = CVodeSetInitStep(cvode_mem, 1.0e-08);
-	//if (check_flag(&flag, "CVodeSetInitStep", 1)) return(1);
+	flag = CVodeSetInitStep(cvode_mem, 1.0e-09);
+	if (check_flag(&flag, "CVodeSetInitStep", 1)) return(1);
 
 	flag = CVodeSetNonlinConvCoef(cvode_mem, 1.0e-03);
 	if (check_flag(&flag, "CVodeSetNonlinConvCoef", 1)) return(1);
@@ -164,7 +164,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	} else {
             printf("\n--> With Analytical J\n");
 	    if (iDense_Creact == 99) {
-                if (iverbose > 1) {
+                if (iverbose > 0) {
                     printf("\n    (99)\n");
 		}
 	        /* Set the JAcobian-times-vector function */
@@ -179,7 +179,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	        if(check_flag(&flag, "CVSpilsSetPreconditioner", 1)) return(1);
 #endif
 	    } else {
-                if (iverbose > 1) {
+                if (iverbose > 0) {
                     printf("\n    (1)\n");
 		}
 	        /* Set the user-supplied Jacobian routine Jac */
@@ -209,7 +209,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	N_VDestroy(atol);          /* Free the atol vector */
 
 	/* Ok we're done ...*/
-        if (iverbose > 1) {
+        if (iverbose > 0) {
 	    printf(" --> DONE WITH INITIALIZATION (CPU) %d \n", iE_Creact);
 	}
 
@@ -236,7 +236,9 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
         elapsed_seconds_RHS = start - start;
         elapsed_seconds_Pcond = start - start;
 
-	printf("BEG : time curr is %14.6e and dt_react is %14.6e and final time should be %14.6e \n", time_init, *dt_react, time_out);
+        if (iverbose > 1) {
+	    printf("BEG : time curr is %14.6e and dt_react is %14.6e and final time should be %14.6e \n", time_init, *dt_react, time_out);
+	}
 
 	/* Get Device MemCpy of in arrays */
 	/* Get Device pointer of solution vector */
@@ -256,21 +258,30 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	}
 
 	/* Call CVODE: ReInit for convergence */
+        if (iverbose > 1) {
             printf("\n -------------------------------------\n");
+	}
 	if (*Init == 1) {
-            printf("ReInit always \n");
+            if (iverbose > 1) {
+                printf("ReInit always \n");
+	    }
 	    CVodeReInit(cvode_mem, time_init, y);
 	    InitPartial = false;
 	} else {
 	    temp_old = abs(rY_in[NEQ] - temp_old);
 	    // Sloppy but I can't think of anything better now
             if (temp_old > 50.0) {
-	        printf("ReInit delta_T = %f \n", temp_old);
+                if (iverbose > 1) {
+	            printf("ReInit delta_T = %f \n", temp_old);
+		}
 	        CVodeReInit(cvode_mem, time_init, y);
 		InitPartial = false;
 	    } else {
-	        printf("ReInit Partial delta_T = %f \n", temp_old);
-	        CVodeReInitPartial(cvode_mem, time_init, y);
+                if (iverbose > 1) {
+	            printf("ReInit Partial delta_T = %f \n", temp_old);
+		}
+	        //CVodeReInitPartial(cvode_mem, time_init, y);
+	        CVodeReInit(cvode_mem, time_init, y);
 		InitPartial = true;
 	    }
 	}
@@ -282,7 +293,9 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	//CVodeGetCurrentTime(cvode_mem, time);
 	//*time = time_out;
 	*dt_react = dummy_time - time_init;
-	printf("END : time curr is %14.6e and actual dt_react is %14.6e \n", dummy_time, *dt_react);
+        if (iverbose > 1) {
+	    printf("END : time curr is %14.6e and actual dt_react is %14.6e \n", dummy_time, *dt_react);
+	}
 
 	/* Pack data to return in main routine external */
 	std::memcpy(rY_in, yvec_d, ((NEQ+1)*NCELLS)*sizeof(realtype));
