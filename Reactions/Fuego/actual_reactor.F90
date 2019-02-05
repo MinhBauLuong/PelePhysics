@@ -561,7 +561,8 @@ contains
 
     type(react_t),   intent(in   ) :: react_state_in
     type(react_t),   intent(inout) :: react_state_out
-    real(c_double),  intent(in   ) :: time, dt_react
+    real(c_double),  intent(in   ) :: time
+    real(c_double),  intent(inout) :: dt_react
     type(reaction_stat_t)          :: actual_react_cvode
 
     integer(c_long) :: neq
@@ -637,6 +638,7 @@ contains
     ierr = FCVode(CVmem, time_out, sunvec_y, time_init, CV_NORMAL)
     if (ierr /= 0) call amrex_abort("actual_reactor: failed in FCVode()")
     !CALL t_CVODE%stop
+    dt_react = time_init - time
 
     !CALL t_eos%start          
     if (iE == 1) then
