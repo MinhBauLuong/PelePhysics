@@ -47,12 +47,11 @@ contains
 
     call transport_init()
 
-    if (ivode == 1) then
-        ! cvode
-        call reactor_init_cvode(cvode_meth, cvode_itmeth, cvode_iJac, cvode_iE, cvode_iDense_in)
-    else
-        call reactor_init(cvode_iE)
-    end if
+#ifdef USE_SUNDIALS3x4x
+    call reactor_init_cvode(cvode_meth, cvode_itmeth, cvode_iJac, cvode_iE, cvode_iDense_in)
+#else
+    call reactor_init(cvode_iE)
+#endif
 
   end subroutine extern_init
 
@@ -107,13 +106,15 @@ contains
     do i = 1, namlen
        probin(i:i) = char(name(i))
     end do
+    print *, " "
     print *, "Initializing from output txt file ",probin(1:namlen)
 
     ! read in the file
     open (unit=49, file=probin(1:namlen), form='formatted', status='old')
     ! Start with number of useful lines
     read(49,*) nlin
-    write(*,*) "  --> txt file has ", nlin, " lines"
+    write(*,*) " ->txt file has ", nlin, " lines"
+    write(*,*) " "
     ! allocate stuff
     allocate(Y_in(nlin,nspec))
     allocate(Y_forcing_in(nlin,nspec+1))
@@ -125,20 +126,27 @@ contains
     ! read useful lines
     DO i = 1, nlin
       read(49,*) y, dum, y_velocity, density, dum, dum, temp(i), dum, dum, dum, dum, Y_in(i,:), dum, dum, dum, dum, dum, dum, Y_forcing_in(i,:)
-      print *, sum(Y_in(i,:))
       !print *, Y_forcing_in(i,nspec+1)*10.0
     END DO
     ! Todo
-    pressure = 1013250.d0
+    !pressure = 1013250.d0
+    pressure = 15000000.d0
+    print *, sum(Y_in(1,:))
 
     close (unit=49)
 
     ! Conversion MKS to CGS for PelePhys
     !! nspec + 1 is energy which here is enthalpy !!
     DO i = 1, nlin
-      Y_forcing_in(i,1:nspec) = Y_forcing_in(i,1:nspec)*1.d-3
-      Y_forcing_in(i,nspec+1) = Y_forcing_in(i,nspec+1)*10.0
+      Y_forcing_in(i,1:nspec) = 0.0d0 !Y_forcing_in(i,1:nspec)*1.d-3
+      Y_forcing_in(i,nspec+1) = 0.0d0 !Y_forcing_in(i,nspec+1)*10.0
     END DO
+
+    if (Y_forcing_in(i,nspec+1) == 0.0) then
+        print *, "NO EXT SOURCE TERM"
+    end if
+
+    CALL flush(6)
 
   end subroutine read_data_from_txt
 
@@ -165,11 +173,11 @@ contains
     integer          :: i, j, k
     type(eos_t)      :: eos_state
 
-    !CALL t_eos%start
     call build(eos_state)
-    !CALL t_eos%stop
 
     ! CGS UNITS
+
+    !print *, "In initialize_data"
 
     do k = lo(3),hi(3)
        do j = lo(2),hi(2)
@@ -177,24 +185,21 @@ contains
 
              eos_state % p          = pressure
              eos_state % T          = temp(i+1)
-             eos_state % massfrac(:)     = Y_in(i+1,:)
-             !eos_state % massfrac(nspec) = ONE - sum(Y_in(i+1,1:nspec-1))
+             !eos_state % massfrac(:)     = Y_in(i+1,:)
+             eos_state % molefrac(:)     = Y_in(i+1,:)
 
-             !CALL t_eos%start
+             call eos_xty(eos_state)
+
              call eos_tp(eos_state)
-             !CALL t_eos%stop
 
              ! rhoY(:nspec) = rhoY, rhoY(nspec+1) = nrg, rhoY(nspec+2) = T
              rhoY(i,j,k,1:nspec) = eos_state % massfrac * eos_state % rho
              if (cvode_iE == 1) then
-                 ! all in e
-                 !rhoY(i,j,k,nspec+1) = eos_state % e
-                 write(*,*) "iE =  ", cvode_iE, " not implemented in 1D profile yet."
-                 stop
+                 rhoY(i,j,k,nspec+1) = eos_state % e 
              else
-                 ! full enthalpy mode
-                 rhoY(i,j,k,nspec+1) = eos_state % h
+                 rhoY(i,j,k,nspec+1) = eos_state % h 
              end if
+
              rhoY(i,j,k,nspec+2) = eos_state % T
 
              ! rhoY_src(:nspec) = rhoForcingSpecs, rhoY_src(nspec+1) = rhoForcingNRG
@@ -206,6 +211,7 @@ contains
     end do
 
     call destroy(eos_state)
+    CALL flush(6)
 
   end subroutine initialize_data
 
@@ -243,17 +249,13 @@ contains
     allocate(Y_in(1,nspec))
     allocate(temp(1))
     read(49,*) a
-    print *,a
     read(49,*) pressure,temp(1),dum,Y_in(1,:)
     eos_state % molefrac(:) = Y_in(1,:)
     pressure = pressure*10.d0
-    !print *, "data read from datafromSC.dat ", pressure,temp(1),eos_state % molefrac(:)
     print *, "sum mole frac ", sum(eos_state % molefrac(:))
     close (unit=49)
 
-    !CALL t_eos%start
     call eos_xty(eos_state)
-    !CALL t_eos%stop
 
     do k = lo(3),hi(3)
        do j = lo(2),hi(2)
@@ -271,7 +273,6 @@ contains
              rhoY(i,j,k,1:nspec) = eos_state % massfrac * eos_state % rho
 
              if (cvode_iE == 1) then
-                 ! all in e
                  rhoY(i,j,k,nspec+1) = eos_state % e
              else
                  ! full enthalpy mode (HP reactor)
@@ -338,6 +339,7 @@ contains
 
                 write(*,*) ""
                 write(*,*) "Dealing with cell ", i,j,k
+                write(*,*) ""
 
                 if (cvode_iE == 1) then
                     react_state_in %              e = mold(i,j,k,nspec+1)
@@ -359,35 +361,34 @@ contains
                 react_state_in % j = j
                 react_state_in % k = k
 
-                if (ivode == 1) then
-                    ! cvode
-                    time_tmp = time
-                    dt_react_incr =  dt_react
-                    write(12,*) "#CVODE "
-                    write(12,*) "#time, T, e, h, P, rho, Yks "
-                    do ii= 1, ndt
-                        !write(*,*) " "
-                        !write(*,*) "#dt_react_incr ", dt_react_incr
-                        dt_react_tmp   = ii* dt_react_incr
-                        stat = react_cvode(react_state_in, react_state_in, dt_react_incr, time)
-                        time_tmp       = dt_react_tmp
+#ifdef USE_DVODE
+               time_tmp = time
+               dt_react_incr =  dt_react
+               write(12,*) "#DVODE "
+               write(12,*) "#time, T, e, h, P, rho, Yks "
+               do ii= 1, ndt
+                        dt_react_tmp   = dt_react_incr
+                        stat = react(react_state_in, react_state_in, dt_react_tmp, time)
+                        time_tmp       = time_tmp + dt_react_tmp
                         rho            = sum(react_state_in % rhoY(1:nspec))
                         write(12,*) time_tmp, react_state_in % T, react_state_in %e, react_state_in %h, react_state_in % p, react_state_in %rho, react_state_in % rhoY(1:nspec)/rho
-                    end do
-                else 
-                    time_tmp = time
-                    dt_react_incr =  dt_react
-                    write(12,*) "#DVODE "
-                    write(12,*) "#dt_react_incr ", dt_react_incr
-                    write(12,*) "#time, T, e, h, P, rho, Yks "
-                    do ii= 1, ndt
-                        dt_react_tmp   = ii* dt_react_incr
-                        stat = react(react_state_in, react_state_in, dt_react_incr, time)
-                        time_tmp       = dt_react_tmp
+               end do
+#else
+
+               time_tmp = time
+               dt_react_incr =  dt_react
+               write(12,*) "#CVODE "
+               write(12,*) "#time, T, e, h, P, rho, Yks "
+               do ii= 1, ndt
+                        dt_react_tmp   = dt_react_incr
+                        stat           = react_cvode(react_state_in, react_state_in, dt_react_tmp, time)
+                        time_tmp       = time_tmp  + dt_react_tmp
                         rho            = sum(react_state_in % rhoY(1:nspec))
-                        write(12,*) time_tmp, react_state_in % T, react_state_in %e, react_state_in %h, react_state_in % p, react_state_in %rho, react_state_in % rhoY(1:nspec)/rho
-                    end do
-                end if
+                        !write(12,*) time_tmp, react_state_in % T, react_state_in %e, react_state_in %h, react_state_in % p, react_state_in %rho, react_state_in % rhoY(1:nspec)/rho
+                        write(12,'(200(ES30.16,1X))') time_tmp, react_state_in % T, react_state_in %e, react_state_in %h, react_state_in % p, react_state_in %rho, MAX(react_state_in % rhoY(1:nspec), 1.0d-60)
+               end do
+#endif
+
                 cost(i,j,k) = stat % cost_value
 
                 ! Export e whenever
@@ -400,40 +401,8 @@ contains
        enddo
     enddo
 
-    !CALL t_total%stop
-    !CALL t_total%norm(t_total)
-    !CALL t_eos%norm(t_total)
-    !CALL t_ck%norm(t_total)
-    !!CALL t_init%norm(t_total)
-    !CALL t_ReInit%norm(t_total)
-    !CALL t_CVODE%norm(t_total)
-    !CALL t_AJac%norm(t_CVODE)
-    !CALL t_ckJac%norm(t_AJac)
-    !!PRINTS
-    !CALL t_total%print
-    !CALL t_eos%print
-    !CALL t_ck%print
-    !!CALL t_init%print
-    !CALL t_ReInit%print
-    !CALL t_CVODE%print
-    !CALL t_AJac%print
-    !CALL t_ckJac%print
-    !!RESETS
-    !CALL t_total%reset
-    !CALL t_eos%reset
-    !CALL t_ck%reset
-    !CALL t_CVODE%reset
-    !CALL t_ReInit%reset
-    !CALL t_AJac%reset
-    !CALL t_ckJac%reset
-
-    !CALL t_total%start
-
-
     call destroy(react_state_in)
 
   end subroutine react_state
-
-
 
 end module main_module

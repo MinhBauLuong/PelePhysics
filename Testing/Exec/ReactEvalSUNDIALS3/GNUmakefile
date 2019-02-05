@@ -15,10 +15,31 @@ EBASE     = main
 
 FUEGO_GAS  = TRUE
 
-#USE_CVODE = FALSE
-#USE_SUNDIALS3=TRUE
-USE_SUNDIALS_3x4x=TRUE
+#######################
 USE_DVODE=TRUE
+ifeq ($(USE_DVODE), TRUE)
+    DEFINES  += -DUSE_DVODE
+endif
+
+USE_SUNDIALS_3x4x=FALSE
+#CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/cvode-4.0.2/instdir/lib/
+#CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/instdir/lib/ 
+
+USE_KLU = FALSE
+ifeq ($(USE_KLU), TRUE)
+    DEFINES  += -DUSE_KLU
+endif
+
+USE_FORTRAN_CVODE=FALSE
+ifeq ($(USE_FORTRAN_CVODE), TRUE)
+    DEFINES  += -DUSE_FORTRAN_CVODE
+    USE_PYJAC = FALSE
+    ifeq ($(USE_PYJAC), TRUE)
+        DEFINES  += -DUSE_PYJAC
+    endif
+else
+    USE_PYJAC = FALSE
+endif
 
 USE_CUDA_CVODE = FALSE
 
@@ -27,14 +48,7 @@ ifeq ($(USE_SDC_FORTRAN), TRUE)
     DEFINES  += -DUSE_SDC_F
 endif
 
-#USE_PYJAC = FALSE
-#ifeq ($(USE_PYJAC), TRUE)
-#    #CPPFLAGS += -DUSE_PYJAC 
-#    DEFINES  += -DUSE_PYJAC 
-#endif
-
-CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/instdir/lib/ 
-
+#######################
 
 ifeq ($(FUEGO_GAS), TRUE)
   Eos_dir         = Fuego

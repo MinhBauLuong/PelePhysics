@@ -282,13 +282,6 @@ int main (int argc,
         count = count+1;
     }
 
-    // Write MF to output file ?
-    //if (mfabfile_out != "") {
-    //               amrex::Print() << "mfabfile_out" << mfabfile_out << std::endl;
-    //    	   amrex::VisMF::Write(mf, mfabfile_out);
-    //}
-
-
     stop_time = ParallelDescriptor::second();
     ParallelDescriptor::ReduceRealMax(stop_time,IOProc);
     // Tell the I/O Processor to write out the "run time"
