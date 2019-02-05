@@ -184,7 +184,6 @@ contains
 
              ! rhoY(:nspec) = rhoY, rhoY(nspec+1) = nrg, rhoY(nspec+2) = T
              rhoY(i,j,k,1:nspec) = eos_state % massfrac * eos_state % rho
-             ! full enthalpy mode
              if (iE_quienaqun == 1) then
                  rhoY(i,j,k,nspec+1) = eos_state % e 
              else
@@ -248,9 +247,7 @@ contains
     print *, "sum mole frac ", sum(eos_state % molefrac(:))
     close (unit=49)
 
-
     call eos_xty(eos_state)
-
 
     do k = lo(3),hi(3)
        do j = lo(2),hi(2)
@@ -262,8 +259,6 @@ contains
              call eos_tp(eos_state)
 
              rhoY(i,j,k,1:nspec) = eos_state % massfrac * eos_state % rho
-             ! full enthalpy mode
-             !stop 'Full H mode not allowed when data init by hand'
              if (iE_quienaqun == 1) then
                  rhoY(i,j,k,nspec+1) = eos_state % e
              else
@@ -334,7 +329,6 @@ contains
                 write(*,*) "Dealing with cell ", i,j,k
                 write(*,*) ""
 
-                !print *, "iE is ", iE_quienaqun
                 if (iE_quienaqun == 1) then
                     react_state_in %              e = mold(i,j,k,nspec+1)
                     react_state_in %    rhoedot_ext = ysrc(i,j,k,nspec+1)
