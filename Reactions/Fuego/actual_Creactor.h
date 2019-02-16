@@ -31,6 +31,7 @@ typedef struct {
   realtype **P[1][1], **Jbd[1][1];
   sunindextype *pivot[1][1];
 #ifdef USE_KLU 
+  int NNZ; 
   //SlsMat PS[1][1];
   SUNMatrix PS[1][1];
   realtype *Jdata = NULL;
@@ -101,9 +102,10 @@ extern "C" {
     void ckindx_(int * iwrk, double * rwrk, int * mm, int * kk, int * ii, int * nfit); 
     void ckubms_(double * t, double * y, int * iwrk, double * rwrk, double * ubms);
     void ckhbms_(double * t, double * y, int * iwrk, double * rwrk, double * hbms);
-    void sparsity_info_( int * njdata, int * consp);
-    //void sparsity_preproc_( long int * rowVals, long int * colPtrs, int * consP);
-    void sparsity_preproc_( int * rowVals, int * colPtrs, int * consP);
+    void sparsity_info_( int * njdata, int * consp, int ncells);
+    void sparsity_info_precond_( int * njdata, int * consp);
+    void sparsity_preproc_( int * rowVals, int * colPtrs, int * consP, int ncells);
+    void sparsity_preproc_precond_( int * rowVals, int * colPtrs, int * consP);
 
 }
 /**********************************/
