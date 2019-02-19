@@ -17,7 +17,7 @@
 
 #include <nvector/nvector_cuda.h>
 
-#include <cusolver/cvode_cusolver_spqr.h>
+//#include <cusolver/cvode_cusolver_spqr.h>
 
 #include <AMReX_Print.H>
 
@@ -39,8 +39,8 @@ typedef struct CVodeUserData {
 /* Functions Called by the Solver */
 static int cF_RHS(realtype t, N_Vector y_in, N_Vector ydot, void *user_data);
 
-int fun_csr_jac(realtype t, N_Vector y_in, N_Vector fy_in,  
-                CV_cuSolver_csr_sys csr_sys, void* user_data);
+//int fun_csr_jac(realtype t, N_Vector y_in, N_Vector fy_in,  
+//                CV_cuSolver_csr_sys csr_sys, void* user_data);
 
 
 /**********************************/

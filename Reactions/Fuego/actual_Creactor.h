@@ -28,20 +28,19 @@
 /**********************************/
 
 typedef struct {
-  realtype **P[1][1], **Jbd[1][1];
-  sunindextype *pivot[1][1];
+  realtype **(**P), **(**Jbd);
+  sunindextype *(**pivot);
 #ifdef USE_KLU 
   int NNZ; 
-  //SlsMat PS[1][1];
-  SUNMatrix PS[1][1];
-  realtype *Jdata = NULL;
-  //sunindextype *rowVals = NULL;
-  //sunindextype *colPtrs = NULL;
-  int *rowVals = NULL;
-  int *colPtrs = NULL;
-  klu_common Common;
-  klu_symbolic *Symbolic;
-  klu_numeric *Numeric;
+  //SUNMatrix PS[1][1];
+  //realtype **(**PS);
+  SUNMatrix *PS;
+  realtype **Jdata = NULL;
+  int **rowVals = NULL;
+  int **colPtrs = NULL;
+  klu_common *Common;
+  klu_symbolic **Symbolic;
+  klu_numeric **Numeric;
 #endif
 } *UserData;
 
@@ -49,6 +48,9 @@ typedef struct {
 static int cF_RHS(realtype t, N_Vector y_in, N_Vector ydot, void *user_data);
 
 static int cJac(realtype tn, N_Vector y, N_Vector fy, SUNMatrix J,
+		void *user_data, N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
+
+static int cJac_KLU(realtype tn, N_Vector y, N_Vector fy, SUNMatrix J,
 		void *user_data, N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
 
 static int jtv(N_Vector v, N_Vector Jv, realtype t, N_Vector u,
@@ -103,8 +105,8 @@ extern "C" {
     void ckubms_(double * t, double * y, int * iwrk, double * rwrk, double * ubms);
     void ckhbms_(double * t, double * y, int * iwrk, double * rwrk, double * hbms);
     void sparsity_info_( int * njdata, int * consp, int ncells);
-    void sparsity_info_precond_( int * njdata, int * consp);
     void sparsity_preproc_( int * rowVals, int * colPtrs, int * consP, int ncells);
+    void sparsity_info_precond_( int * njdata, int * consp);
     void sparsity_preproc_precond_( int * rowVals, int * colPtrs, int * consP);
 
 }

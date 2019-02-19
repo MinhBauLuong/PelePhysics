@@ -90,7 +90,9 @@
 #endif
 #define DWDOT_PRECOND DWDOT_PRECOND
 #define SPARSITY_INFO SPARSITY_INFO
+#define SPARSITY_INFO_PRECOND SPARSITY_INFO_PRECOND
 #define SPARSITY_PREPROC SPARSITY_PREPROC
+#define SPARSITY_PREPROC_PRECOND SPARSITY_PREPROC_PRECOND
 #define VCKHMS VCKHMS
 #define VCKPY VCKPY
 #define VCKWYR VCKWYR
@@ -182,7 +184,9 @@
 #endif
 #define DWDOT_PRECOND dwdot_precond
 #define SPARSITY_INFO sparsity_info
+#define SPARSITY_INFO_PRECOND sparsity_info_precond
 #define SPARSITY_PREPROC sparsity_preproc
+#define SPARSITY_PREPROC_PRECOND sparsity_preproc_precond
 #define VCKHMS vckhms
 #define VCKPY vckpy
 #define VCKWYR vckwyr
@@ -274,7 +278,9 @@
 #endif
 #define DWDOT_PRECOND dwdot_precond_
 #define SPARSITY_INFO sparsity_info_
+#define SPARSITY_INFO_PRECOND sparsity_info_precond_
 #define SPARSITY_PREPROC sparsity_preproc_
+#define SPARSITY_PREPROC_PRECOND sparsity_preproc_precond_
 #define VCKHMS vckhms_
 #define VCKPY vckpy_
 #define VCKWYR vckwyr_
@@ -400,8 +406,10 @@ void DWDOT(double * restrict J, double * restrict sc, double * restrict T, int *
 void DWDOT_PYJAC(double * restrict J, double * restrict sc, double * restrict Tp, double * restrict Press);
 #endif
 void DWDOT_PRECOND(double * restrict J, double * restrict sc, double * restrict Tp, int * HP);
-void SPARSITY_INFO(int * nJdata, int * consP);
-void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP);
+void SPARSITY_INFO(int * nJdata, int * consP, int NCELLS);
+void SPARSITY_INFO_PRECOND(int * nJdata, int * consP);
+void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP, int NCELLS);
+void SPARSITY_PREPROC_PRECOND(int * restrict rowVals, int * restrict colPtrs, int * consP);
 void aJacobian(double * restrict J, double * restrict sc, double T, int consP);
 void aJacobian_precond(double * restrict J, double * restrict sc, double T, int HP);
 void dcvpRdT(double * restrict species, double * restrict tc);
@@ -22710,8 +22718,8 @@ void DWDOT(double * restrict J, double * restrict sc, double * restrict Tp, int 
     return;
 }
 
-/*compute the sparsity pattern Jacobian */
-void SPARSITY_INFO( int * nJdata, int * consP)
+/*compute the sparsity pattern of the approximate precond Jacobian */
+void SPARSITY_INFO_PRECOND( int * nJdata, int * consP)
 {
     double c[56];
     double J[3249];
@@ -22740,9 +22748,35 @@ void SPARSITY_INFO( int * nJdata, int * consP)
     return;
 }
 
-
 /*compute the sparsity pattern Jacobian */
-void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP)
+void SPARSITY_INFO( int * nJdata, int * consP, int NCELLS)
+{
+    double c[56];
+    double J[3249];
+
+    for (int k=0; k<56; k++) {
+        c[k] = 1.0/ 56.000000 ;
+    }
+
+    aJacobian(J, c, 1500.0, *consP);
+
+    int nJdata_tmp = 0;
+    for (int k=0; k<57; k++) {
+        for (int l=0; l<57; l++) {
+            if(J[57*k + l] != 0.0){
+                nJdata_tmp = nJdata_tmp + 1;
+            }
+        }
+    }
+
+    *nJdata = NCELLS * nJdata_tmp;
+
+    return;
+}
+
+
+/*compute the sparsity pattern of the simplified precond Jacobian */
+void SPARSITY_PREPROC_PRECOND(int * restrict rowVals, int * restrict colPtrs, int * consP)
 {
     double c[56];
     double J[3249];
@@ -22772,6 +22806,40 @@ void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * cons
 
     return;
 }
+
+/*compute the sparsity pattern Jacobian */
+void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP, int NCELLS)
+{
+    double c[56];
+    double J[3249];
+    int offset_row;
+    int offset_col;
+
+    for (int k=0; k<56; k++) {
+        c[k] = 1.0/ 56.000000 ;
+    }
+
+    aJacobian(J, c, 1500.0, *consP);
+
+    colPtrs[0] = 0;
+    int nJdata_tmp = 0;
+    for (int nc=0; nc<NCELLS; nc++) {
+	offset_row = nc * 57;
+	offset_col = nc * 57;
+	for (int k=0; k<57; k++) {
+            for (int l=0; l<57; l++) {
+		if(J[57*k + l] != 0.0) {
+                    rowVals[nJdata_tmp] = l + offset_row; 
+                    nJdata_tmp = nJdata_tmp + 1; 
+                }
+	    }
+            colPtrs[offset_col + (k + 1)] = nJdata_tmp;
+	}
+    }
+
+    return;
+}
+
 
 /*compute the reaction Jacobian */
 void aJacobian(double * restrict J, double * restrict sc, double T, int consP)

@@ -7,7 +7,7 @@ module main_module
   real(amrex_real), dimension(:,:), allocatable :: Y_in, Y_forcing_in
   real(amrex_real), dimension(:), allocatable :: temp
   real(amrex_real) :: pressure
-  integer :: nlin, cvode_iE
+  integer :: nlin, iE_quienaqun
 
 contains
 
@@ -27,7 +27,7 @@ contains
     real (kind=dp_t) :: small_temp = 1.d-200
     real (kind=dp_t) :: small_dens = 1.d-200
 
-    cvode_iE = cvode_iE_in
+    iE_quienaqun = cvode_iE_in
 
     ! initialize the external runtime parameters in
     ! extern_probin_module
@@ -131,7 +131,7 @@ contains
              eos_state % p               = pressure
              eos_state % T               = temp(1) 
              ! CAREFULL need to know N2 idx
-             eos_state % massfrac(nspec) = ONE - sum(eos_state % massfrac(1:nspec-1))
+             !eos_state % massfrac(nspec) = ONE - sum(eos_state % massfrac(1:nspec-1))
 
              call eos_tp(eos_state)
 
@@ -140,7 +140,7 @@ contains
              rhoY(i,j,k,nspec+1) = eos_state % T
              !rhoY src ext
              rhoYs(i,j,k,1:nspec) = 0.0 
-             if (cvode_iE == 1) then
+             if (iE_quienaqun == 1) then
                  ! all in e
                  rhoE(i,j,k,1) = eos_state % e * eos_state % rho
              else
@@ -188,7 +188,7 @@ contains
     do i = 1, namlen
        probin(i:i) = char(name(i))
     end do
-    print *, "Initializing from output txt file ",probin(1:namlen)
+    write(6,*) "Initializing from output txt file ",probin(1:namlen)
 
     ! read in the file
     open (unit=49, file=probin(1:namlen), form='formatted', status='old')
@@ -207,7 +207,6 @@ contains
     DO i = 1, nlin
       read(49,*) y, dum, y_velocity, density, dum, dum, temp(i), dum, dum, dum, dum, Y_in(i,:), dum, dum, dum, dum, dum, dum, Y_forcing_in(i,:)
       print *, sum(Y_in(i,:))
-      !print *, Y_forcing_in(i,nspec+1)*10.0
     END DO
     ! Todo
     pressure = 1013250.d0
@@ -221,6 +220,7 @@ contains
       Y_forcing_in(i,nspec+1) = 0.0 !Y_forcing_in(i,nspec+1)*10.0
     END DO
     plo = pressure 
+    CALL flush(6)
   end subroutine read_data_from_txt
   !--------!
 
@@ -267,8 +267,8 @@ contains
              eos_state % T          = temp(i+1)
              eos_state % massfrac(:)     = Y_in(i+1,:)
              !eos_state % massfrac(nspec) = ONE - sum(Y_in(i+1,1:nspec-1))
-             !print *,i,j,k
-             !print *,eos_state % T  
+
+             !call eos_xty(eos_state)
 
              call eos_tp(eos_state)
 
@@ -278,8 +278,7 @@ contains
              ! rhoY_src(:nspec) = rhoForcingSpecs
              rhoY_src(i,j,k,1:nspec) = Y_forcing_in(i+1,1:nspec)
              ! all in h
-             !rhoE(i,j,k,1) = eos_state % h * eos_state % rho
-             rhoE(i,j,k,1) = eos_state % e * eos_state % rho
+             rhoE(i,j,k,1) = eos_state % h * eos_state % rho
              !rhoE src ext
              rhoEs(i,j,k,1) = Y_forcing_in(i+1,nspec+1)
 

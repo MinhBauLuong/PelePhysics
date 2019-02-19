@@ -144,7 +144,8 @@ int main (int argc,
     BoxArray ba;
     Geometry geom;
     IntVect dom_lo(IntVect(D_DECL(0,0,0)));
-    IntVect dom_hi(IntVect(D_DECL(n_cell-1, 0, 0)));
+    //IntVect dom_hi(IntVect(D_DECL(n_cell-1, 0, 0)));
+    IntVect dom_hi(IntVect(D_DECL(n_cell-1, 4, 0)));
     Box domain(dom_lo, dom_hi);
 
     // Initialize the boxarray "ba" from the single box "bx"
@@ -152,7 +153,12 @@ int main (int argc,
 
     // Break up boxarray "ba" into chunks no larger than "max_grid_size"
     // along a direction
-    ba.maxSize(max_grid_size);
+    const IntVect ChunkSize = IntVect::TheUnitVector(); //parent->maxGridSize(level);
+    IntVect chunk(ChunkSize);
+    chunk[0] = 1; //max_grid_size;
+    chunk[1] = max_grid_size; 
+    chunk[2] = 1; 
+    ba.maxSize(chunk);
 
     // This defines the physical size of the box.  Right now the box is
     // [-1,1] in each direction.
@@ -308,7 +314,7 @@ int main (int argc,
 	        tmp_vect[(count_box-1)*(Ncomp+1) + Ncomp] = Fb(bit(), Ncomp);
 		count_box = count_box + 1;
 	}
-        amrex::Print() << "... will contain " << count_box-1 << "boxes" << std::endl;
+        amrex::Print() << "... will contain " << count_box-1 << "cells" << std::endl;
 
         /* Solve the problem */
 	Real time_tmp, dt_incr;

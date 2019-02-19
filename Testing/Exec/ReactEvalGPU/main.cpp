@@ -144,7 +144,8 @@ int main (int argc,
     BoxArray ba;
     Geometry geom;
     IntVect dom_lo(IntVect(D_DECL(0,0,0)));
-    IntVect dom_hi(IntVect(D_DECL(n_cell-1, 0, 0)));
+    //IntVect dom_hi(IntVect(D_DECL(n_cell-1, 0, 0)));
+    IntVect dom_hi(IntVect(D_DECL(n_cell-1, 4, 0)));
     Box domain(dom_lo, dom_hi);
 
     // Initialize the boxarray "ba" from the single box "bx"
@@ -152,7 +153,12 @@ int main (int argc,
 
     // Break up boxarray "ba" into chunks no larger than "max_grid_size"
     // along a direction
-    ba.maxSize(max_grid_size);
+    const IntVect ChunkSize = IntVect::TheUnitVector(); //parent->maxGridSize(level);
+    IntVect chunk(ChunkSize);
+    chunk[0] = 1; //max_grid_size;
+    chunk[1] = max_grid_size; 
+    chunk[2] = 1; 
+    ba.maxSize(chunk);
 
     // This defines the physical size of the box.  Right now the box is
     // [-1,1] in each direction.
@@ -213,6 +219,7 @@ int main (int argc,
          for (int i = 0; i < txtfile_in_length; i++)
 	 txtfile_in_name[i] = txtfile_in[i];
 
+	 printf(" (main) Will read data_from_txt ... \n");
 	 read_data_from_txt(&(txtfile_in_name[0]),&txtfile_in_length,&plo);
 
 #ifdef _OPENMP
@@ -307,22 +314,24 @@ int main (int argc,
 	        tmp_vect[(count_box-1)*(Ncomp+1) + Ncomp] = Fb(bit(), Ncomp);
 		count_box = count_box + 1;
 	}
-        amrex::Print() << "... will contain " << count_box-1 << "boxes" << std::endl;
+        amrex::Print() << "... will contain " << count_box-1 << "cells" << std::endl;
 
         /* Solve the problem */
-	Real time_tmp, dt_incr, dt_tmp;
+	Real time_tmp, dt_incr;
 	dt_incr =  dt;
 	time_tmp = time;
 	int reInit = 1;
 	//printf("#TIME TEMPERATURE \n");
 	myfile << "#TIME TEMPERATURE P Yks \n";
 	for (int i = 0; i < ndt; ++i) {
-		dt_tmp = (i+1)* dt_incr;
 		actual_cReact(tmp_vect, tmp_src_vect, 
 				tmp_vect_energy, tmp_src_vect_energy,
 				&plo, &dt_incr, &time_tmp, &reInit);
 				//&plo, &dt_incr, &time, &reInit);
-		time_tmp = dt_tmp;
+	        // increment time with true dt_incr
+		time_tmp = time_tmp + dt_incr;
+		// fix new dt_incr to chosen value, hoping cvode will reach it
+		dt_incr = dt;
                 //printf("--> at time : %2.8e, ",time_tmp);
 		//printf(" out state (T) is %4.4f and Ysrc(OH) is \n", tmp_vect[Ncomp], plo);
 		//printf("%2.8e %4.4f \n", time_tmp, tmp_vect[Ncomp]);

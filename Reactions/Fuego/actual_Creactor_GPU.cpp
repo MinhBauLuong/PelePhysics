@@ -34,7 +34,6 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	int iwrk;
 	int mm, ii, nfit;
 
-	//ckindx_(&iwrk,&rwrk,&mm,&NEQ,&ii,&nfit);
 	ckindx_(&iwrk,&rwrk,&mm,&NEQ,&ii,&nfit);
         if (iverbose > 1) {
 	    printf("Nb of spec is %d \n", NEQ);
@@ -56,6 +55,8 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
         user_data->ncells_d[0] = NCELLS;
         user_data->neqs_per_cell[0] = NEQ;
         user_data->flagP = iE_Creact; 
+
+	/* Initialize chemistry onto the device */
         initialize_chemistry_device(user_data);
 
 	/* Definition of main vector */
@@ -94,24 +95,25 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	flag = CVodeSVtolerances(cvode_mem, reltol, atol);
 	if (check_flag(&flag, "CVodeSVtolerances", 1)) return(1);
 
-	if (iDense_Creact == 1) {
-            cuSolver_method LinearSolverMethod = QR;
-            flag = cv_cuSolver_SetLinearSolver(cvode_mem, LinearSolverMethod, false, 0);
-            flag = cv_cuSolver_CSR_SetSizes(cvode_mem, NEQ+1, (NEQ+1)*(NEQ+1),NCELLS);
-            flag = cv_cuSolver_SetJacFun(cvode_mem, &fun_csr_jac);
-            int csr_row_count[NEQ+2];
-            int csr_col_index[(NEQ+1)*(NEQ+1)];
-            csr_row_count[0] = 1;
-            for (int i=0; i<NEQ+1; i++) {
-                csr_row_count[i+1] = csr_row_count[i] + (NEQ+1);
-                printf("\n csr_row_count ? %d \n", csr_row_count[i+1]);
-                for (int j=0; j<NEQ+1; j++) {
-                    csr_col_index[i*(NEQ+1) + j] = j+1 ;
-                    printf("csr_col_index ? %d", csr_col_index[i*(NEQ+1) + j]); 
-                }
-            }
-            flag = cv_cuSolver_SystemInitialize(cvode_mem, &csr_row_count[0], &csr_col_index[0]);
-	} else if (iDense_Creact == 99) {
+	//if (iDense_Creact == 1) {
+            //cuSolver_method LinearSolverMethod = QR;
+            //flag = cv_cuSolver_SetLinearSolver(cvode_mem, LinearSolverMethod, false, 0);
+            //flag = cv_cuSolver_CSR_SetSizes(cvode_mem, NEQ+1, (NEQ+1)*(NEQ+1),NCELLS);
+            //flag = cv_cuSolver_SetJacFun(cvode_mem, &fun_csr_jac);
+            //int csr_row_count[NEQ+2];
+            //int csr_col_index[(NEQ+1)*(NEQ+1)];
+            //csr_row_count[0] = 1;
+            //for (int i=0; i<NEQ+1; i++) {
+            //    csr_row_count[i+1] = csr_row_count[i] + (NEQ+1);
+            //    printf("\n csr_row_count ? %d \n", csr_row_count[i+1]);
+            //    for (int j=0; j<NEQ+1; j++) {
+            //        csr_col_index[i*(NEQ+1) + j] = j+1 ;
+            //        printf("csr_col_index ? %d", csr_col_index[i*(NEQ+1) + j]); 
+            //    }
+            //}
+            //flag = cv_cuSolver_SystemInitialize(cvode_mem, &csr_row_count[0], &csr_col_index[0]);
+	//} else 
+	if (iDense_Creact == 99) {
             printf("\n--> Using an Iterative Solver \n");
 
             /* Create the linear solver object */
@@ -122,7 +124,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	    flag = CVSpilsSetLinearSolver(cvode_mem, LS);
 	    if(check_flag(&flag, "CVSpilsSetLinearSolver", 1)) return(1);
 	} else {
-	    amrex::Abort("\n--> Direct Sparse / Iterative Solvers not yet implemented ...\n");
+	    amrex::Abort("\n--> Only solver implemented is iterative GMRES ...\n");
 	}
 
 	if (iJac_Creact == 0) {
@@ -132,11 +134,11 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	}
 
         /* Set the max number of time steps */ 
-	flag = CVodeSetMaxNumSteps(cvode_mem, 10000);
+	flag = CVodeSetMaxNumSteps(cvode_mem, 100000);
 	if(check_flag(&flag, "CVodeSetMaxNumSteps", 1)) return(1);
 
         /* Set the max order */
-        flag = CVodeSetMaxOrd(cvode_mem, 2);
+        flag = CVodeSetMaxOrd(cvode_mem, 5);
         if(check_flag(&flag, "CVodeSetMaxOrd", 1)) return(1);
 
 	/* Define vectors to be used later in creact */
@@ -180,6 +182,10 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
         time_init = *time;
 	time_out  = *time + *dt_react;
 
+        if (iverbose > 3) {
+	    printf("BEG : time curr is %14.6e and dt_react is %14.6e and final time should be %14.6e \n", time_init, *dt_react, time_out);
+	}
+
 	/* Get Device MemCpy of in arrays */
 	/* Get Device pointer of solution vector */
 	realtype *yvec_d      = N_VGetDeviceArrayPointer_Cuda(y);
@@ -197,7 +203,13 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	}
 
 	/* Call CVODE: ReInit for convergence */
+        if (iverbose > 1) {
+            printf("\n -------------------------------------\n");
+	}
 	if (*Init == 1) {
+            if (iverbose > 1) {
+                printf("ReInit always \n");
+	    }
 	    CVodeReInit(cvode_mem, time_init, y);
 	} else {
 	    // Really bad here when pseveral cells are packed together
@@ -205,16 +217,20 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	    int offset;
 	    for  (int tid = 0; tid < NCELLS; tid++) {
 		offset = tid * (NEQ + 1);
-	        temp_old[tid] = abs(rY_in[offset + NEQ] - temp_old[tid]);
+	        temp_old[tid] = fabs(rY_in[offset + NEQ] - temp_old[tid]);
 		if (delta_T_max < temp_old[tid]) {
 		    delta_T_max = temp_old[tid];
 		}
 	    }
             if (delta_T_max > 50.0) {
-	        printf("ReInit delta_T = %f \n", delta_T_max);
+                if (iverbose > 1) {
+	            printf("ReInit delta_T = %f \n", delta_T_max);
+		}
 	        CVodeReInit(cvode_mem, time_init, y);
 	    } else {
-	        printf("ReInit Partial delta_T = %f \n", delta_T_max);
+                if (iverbose > 1) {
+	            printf("ReInit Partial delta_T = %f \n", delta_T_max);
+		}
 	        CVodeReInitPartial(cvode_mem, time_init, y);
 	    }
         }
@@ -294,8 +310,12 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 	   printf(" -- number of Newton failures %-6ld \n", itmp);
            ierr = CVodeGetNumGEvals(cvode_mem, &itmp);
 	   printf(" -- nge ? %-6ld \n", itmp);
+           printf(" -------------------------------------\n");
 	}
-	return(0);
+
+        long int nfe;
+	flag = CVodeGetNumRhsEvals(cvode_mem, &nfe);
+	return nfe;
 }
 
 /* RHS routine used in CVODE */
@@ -341,42 +361,42 @@ static int cF_RHS(realtype t, N_Vector y_in, N_Vector ydot_in,
 }
 
 
-int fun_csr_jac(realtype t, N_Vector y_in, N_Vector fy_in,  
-                CV_cuSolver_csr_sys csr_sys, void* user_data)
-{
-	cudaError_t cuda_status = cudaSuccess;
-
-	/* Get Device pointers for Kernel call */
-	realtype *yvec_d      = N_VGetDeviceArrayPointer_Cuda(y_in);
-	realtype *ydot_d      = N_VGetDeviceArrayPointer_Cuda(fy_in);
-
-        if (iE_Creact == 1) {
-	    /* GPU tests */
-	    unsigned block = 32;
-	    unsigned grid = NCELLS/32 + 1;
-	    fKernelJacCSR<<<grid,block>>>(t, user_data,
-                                          yvec_d, ydot_d, 
-                                          csr_sys->d_csr_values,
-			                  csr_sys->size_per_subsystem,
-                                          csr_sys->csr_number_nonzero,
-                                          csr_sys->number_subsystems);
-	    cuda_status = cudaDeviceSynchronize();
-	    assert(cuda_status == cudaSuccess);
-	} else {
-	    unsigned block = 32;
-	    unsigned grid = NCELLS/32 + 1;
-	    fKernelJacCSR<<<grid,block>>>(t, user_data,
-                                          yvec_d, ydot_d, 
-                                          csr_sys->d_csr_values,
-			                  csr_sys->size_per_subsystem,
-                                          csr_sys->csr_number_nonzero,
-                                          csr_sys->number_subsystems);
-	    cuda_status = cudaDeviceSynchronize();
-            printf("fun_csr_jac after fKernelJacCSR ...\n");
-	    assert(cuda_status == cudaSuccess);
-	}
-	return(0);
-}
+//int fun_csr_jac(realtype t, N_Vector y_in, N_Vector fy_in,  
+//                CV_cuSolver_csr_sys csr_sys, void* user_data)
+//{
+//	cudaError_t cuda_status = cudaSuccess;
+//
+//	/* Get Device pointers for Kernel call */
+//	realtype *yvec_d      = N_VGetDeviceArrayPointer_Cuda(y_in);
+//	realtype *ydot_d      = N_VGetDeviceArrayPointer_Cuda(fy_in);
+//
+//        if (iE_Creact == 1) {
+//	    /* GPU tests */
+//	    unsigned block = 32;
+//	    unsigned grid = NCELLS/32 + 1;
+//	    fKernelJacCSR<<<grid,block>>>(t, user_data,
+//                                          yvec_d, ydot_d, 
+//                                          csr_sys->d_csr_values,
+//			                  csr_sys->size_per_subsystem,
+//                                          csr_sys->csr_number_nonzero,
+//                                          csr_sys->number_subsystems);
+//	    cuda_status = cudaDeviceSynchronize();
+//	    assert(cuda_status == cudaSuccess);
+//	} else {
+//	    unsigned block = 32;
+//	    unsigned grid = NCELLS/32 + 1;
+//	    fKernelJacCSR<<<grid,block>>>(t, user_data,
+//                                          yvec_d, ydot_d, 
+//                                          csr_sys->d_csr_values,
+//			                  csr_sys->size_per_subsystem,
+//                                          csr_sys->csr_number_nonzero,
+//                                          csr_sys->number_subsystems);
+//	    cuda_status = cudaDeviceSynchronize();
+//            printf("fun_csr_jac after fKernelJacCSR ...\n");
+//	    assert(cuda_status == cudaSuccess);
+//	}
+//	return(0);
+//}
 
 /*
  * CUDA kernels
@@ -391,7 +411,6 @@ __global__ void fKernelSpec(realtype *dt, void *user_data,
   tid = blockDim.x * blockIdx.x + threadIdx.x;
 
   if (tid < udata->ncells_d[0]) {
-      //How can I pass the 29 here I have no idea;
       realtype massfrac[56],activity[56];
       realtype Xi[56], cXi[56];
       realtype cdot[56], molecular_weight[56];
@@ -402,20 +421,23 @@ __global__ void fKernelSpec(realtype *dt, void *user_data,
 
       /* MW CGS */
       molecularWeight_d(molecular_weight);
+
       /* rho */ 
       realtype rho = 0.0;
       for (int i = 0; i < udata->neqs_per_cell[0]; i++){
           rho = rho + yvec_d[offset + i];
       }
+
       /* temp */
       temp = yvec_d[offset + udata->neqs_per_cell[0]];
+
       /* Yks, C CGS*/
       for (int i = 0; i < udata->neqs_per_cell[0]; i++){
           massfrac[i] = yvec_d[offset + i] / rho;
 	  activity[i] = yvec_d[offset + i]/(molecular_weight[i]);
       }
+
       /* NRG CGS */
-      //printf("In fKernelSpec what is dt ? %4.12e\n", *dt);
       energy = (rhoX_init[tid] + rhoXsrc_ext[tid]*(*dt)) /rho;
 
       /* Fuego calls on device */
