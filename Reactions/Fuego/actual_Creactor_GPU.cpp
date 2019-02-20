@@ -9,7 +9,7 @@
   int iDense_Creact = 1;
   int iJac_Creact   = 0;
   int iE_Creact     = 1;
-  int iverbose      = 2;
+  int iverbose      = 1;
   void *cvode_mem   = NULL;
   double *rhoe_init = NULL;
   double *rhoh_init = NULL;
@@ -35,7 +35,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	int mm, ii, nfit;
 
 	ckindx_(&iwrk,&rwrk,&mm,&NEQ,&ii,&nfit);
-        if (iverbose > 1) {
+        if (iverbose > 0) {
 	    printf("Nb of spec is %d \n", NEQ);
 	}
 
@@ -45,7 +45,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	NCELLS         = *Ncells;
         neq_tot        = (NEQ + 1) * NCELLS;
 
-        if (iverbose > 1) {
+        if (iverbose > 0) {
 	    printf("Ncells in one solve ? %d\n",NCELLS);
 	}
 
@@ -161,7 +161,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	N_VDestroy(atol);          /* Free the atol vector */
 
 	/* Ok we're done ...*/
-        if (iverbose > 1) {
+        if (iverbose > 0) {
 	    printf(" --> DONE WITH INITIALIZATION (GPU) %d \n", iE_Creact);
 	}
 
@@ -206,34 +206,34 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
         if (iverbose > 1) {
             printf("\n -------------------------------------\n");
 	}
-	if (*Init == 1) {
+	//if (*Init == 1) {
             if (iverbose > 1) {
                 printf("ReInit always \n");
 	    }
 	    CVodeReInit(cvode_mem, time_init, y);
-	} else {
-	    // Really bad here when pseveral cells are packed together
-	    double delta_T_max = 0.0;
-	    int offset;
-	    for  (int tid = 0; tid < NCELLS; tid++) {
-		offset = tid * (NEQ + 1);
-	        temp_old[tid] = fabs(rY_in[offset + NEQ] - temp_old[tid]);
-		if (delta_T_max < temp_old[tid]) {
-		    delta_T_max = temp_old[tid];
-		}
-	    }
-            if (delta_T_max > 50.0) {
-                if (iverbose > 1) {
-	            printf("ReInit delta_T = %f \n", delta_T_max);
-		}
-	        CVodeReInit(cvode_mem, time_init, y);
-	    } else {
-                if (iverbose > 1) {
-	            printf("ReInit Partial delta_T = %f \n", delta_T_max);
-		}
-	        CVodeReInitPartial(cvode_mem, time_init, y);
-	    }
-        }
+	//} else {
+	//    // Really bad here when pseveral cells are packed together
+	//    double delta_T_max = 0.0;
+	//    int offset;
+	//    for  (int tid = 0; tid < NCELLS; tid++) {
+	//	offset = tid * (NEQ + 1);
+	//        temp_old[tid] = fabs(rY_in[offset + NEQ] - temp_old[tid]);
+	//	if (delta_T_max < temp_old[tid]) {
+	//	    delta_T_max = temp_old[tid];
+	//	}
+	//    }
+        //    if (delta_T_max > 50.0) {
+        //        if (iverbose > 1) {
+	//            printf("ReInit delta_T = %f \n", delta_T_max);
+	//	}
+	//        CVodeReInit(cvode_mem, time_init, y);
+	//    } else {
+        //        if (iverbose > 1) {
+	//            printf("ReInit Partial delta_T = %f \n", delta_T_max);
+	//	}
+	//        CVodeReInitPartial(cvode_mem, time_init, y);
+	//    }
+        //}
 	flag = CVode(cvode_mem, time_out, y, &time_init, CV_NORMAL);
 	if (check_flag(&flag, "CVode", 1)) return(1);
 
@@ -345,12 +345,10 @@ static int cF_RHS(realtype t, N_Vector y_in, N_Vector ydot_in,
 	} else {
 	    unsigned block = 32;
 	    unsigned grid = NCELLS/32 + 1;
-            printf("RHS before fKernelSpec ...\n");
 	    fKernelSpec<<<grid,block>>>(dt_save, user_data,
 			    yvec_d, ydot_d, 
 			    rhoh_init, rhohsrc_ext, rYsrc);
 	    cuda_status = cudaDeviceSynchronize();
-            printf("RHS after fKernelSpec ...\n");
 	    //std::cout << "In fun_rhs, got cudaDeviceSynchronize error of: " << cudaGetErrorString(cuda_status) << std::endl;
 	    assert(cuda_status == cudaSuccess);
 	}
@@ -506,17 +504,14 @@ __global__ void fKernelJacCSR(realtype t, void *user_data,
         /* Fuego calls on device 
          * NB to be more accurate should use energy to
          * recompute temp ...      */
-        //printf("In fKernelJacCSR what is udata->flagP %d and udata->neqs_per_cell[0] %d \n", udata->flagP, udata->neqs_per_cell[0]);
         if (udata->flagP == 1){
             int consP = 0 ;
             dwdot_d(Jmat, activity, &temp, &consP, user_data);
         } else {
             int consP = 1 ;
-            printf("J arrive jusque la 1 ...\n");
             dwdot_d(Jmat, activity, &temp, &consP, user_data);
         }
         /* fill the sunMat */
-        printf("J arrive jusque la 2 ...\n");
         for (int k = 0; k < udata->neqs_per_cell[0]; k++){
 	    for (int i = 0; i < udata->neqs_per_cell[0]; i++){
                 csr_jac_cell[k*(udata->neqs_per_cell[0]+1)+i] = Jmat[i*(udata->neqs_per_cell[0]+1)+k] * molecular_weight[k] / molecular_weight[i];
@@ -526,7 +521,6 @@ __global__ void fKernelJacCSR(realtype t, void *user_data,
         for (int i = 0; i < udata->neqs_per_cell[0]; i++){
             csr_jac_cell[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+i] = Jmat[i*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] / molecular_weight[i]; 
         }
-        printf("J arrive jusque la 3 ...\n");
     }
 }
 
@@ -534,7 +528,6 @@ __global__ void fKernelJacCSR(realtype t, void *user_data,
  /* Free and destroy memory */
 void extern_cFree(){
 
-	printf("In cFree\n");
 	SUNLinSolFree(LS);
 	N_VDestroy(y);          /* Free the y vector */
 	CVodeFree(&cvode_mem);
@@ -6515,7 +6508,6 @@ __device__ void comp_k_f_d(double * tc, double invT, double * k_f, double * Corr
     /* troe */
     {
         double alpha[25];
-        //printf("In comp_k_f_d what is in TB[0][0] ?, %4.8e \n", udata->TB[0][0]);
         alpha[0] = mixture + (udata->TB[0][0] - 1)*sc[5] + (udata->TB[0][1] - 1)*sc[7] + (udata->TB[0][2] - 1)*sc[18] + (udata->TB[0][3] - 1)*sc[19];
         alpha[1] = mixture + (udata->TB[1][0] - 1)*sc[4] + (udata->TB[1][1] - 1)*sc[5] + (udata->TB[1][2] - 1)*sc[18] + (udata->TB[1][3] - 1)*sc[19];
         alpha[2] = mixture + (udata->TB[2][0] - 1)*sc[4] + (udata->TB[2][1] - 1)*sc[5] + (udata->TB[2][2] - 1)*sc[12] + (udata->TB[2][3] - 1)*sc[18] + (udata->TB[2][4] - 1)*sc[19] + (udata->TB[2][5] - 1)*sc[25];

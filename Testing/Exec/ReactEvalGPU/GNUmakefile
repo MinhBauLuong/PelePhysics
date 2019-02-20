@@ -1,7 +1,7 @@
 # AMREX_HOME defines the directory in which we will find all the BoxLib code
 # If you set AMREX_HOME as an environment variable, this line will be ignored
 
-DEBUG      = TRUE
+DEBUG      = FALSE
 USE_MPI    = FALSE
 USE_OMP    = FALSE
 
@@ -9,7 +9,7 @@ USE_CUDA   = TRUE
 ifeq ($(USE_CUDA), TRUE)
     USE_CUDA_CVODE = TRUE
     USE_CVODE_CUSOLVER = FALSE
-    COMP           = gcc
+    COMP           = pgi
 else
     USE_CUDA_CVODE = FALSE
     USE_CVODE_CUSOLVER = FALSE

@@ -320,7 +320,7 @@ int main (int argc,
 	Real time_tmp, dt_incr;
 	dt_incr =  dt;
 	time_tmp = time;
-	int reInit = 0;
+	int reInit = 1;
 	//printf("#TIME TEMPERATURE \n");
 	myfile << "#TIME TEMPERATURE P Yks \n";
 	for (int i = 0; i < ndt; ++i) {

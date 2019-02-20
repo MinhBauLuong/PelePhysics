@@ -1,6 +1,6 @@
 probin_file = probin
 n_cell = 25
-max_grid_size = 5
+max_grid_size = 32
 
 dt = 1.e-07
 ndt = 300
