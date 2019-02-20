@@ -16,6 +16,7 @@
 #include <cvode/cvode_impl.h>
 
 #ifdef USE_KLU 
+#include "klu.h"
 #include <sunlinsol/sunlinsol_klu.h>
 #include <sundials/sundials_sparse.h>
 #include <sunmatrix/sunmatrix_sparse.h>

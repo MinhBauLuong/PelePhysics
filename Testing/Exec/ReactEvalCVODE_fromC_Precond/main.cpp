@@ -145,7 +145,7 @@ int main (int argc,
     Geometry geom;
     IntVect dom_lo(IntVect(D_DECL(0,0,0)));
     //IntVect dom_hi(IntVect(D_DECL(n_cell-1, 0, 0)));
-    IntVect dom_hi(IntVect(D_DECL(n_cell-1, 4, 0)));
+    IntVect dom_hi(IntVect(D_DECL(n_cell-1, 31, 0)));
     Box domain(dom_lo, dom_hi);
 
     // Initialize the boxarray "ba" from the single box "bx"
