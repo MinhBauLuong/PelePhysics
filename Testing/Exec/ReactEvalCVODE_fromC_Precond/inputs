@@ -1,6 +1,6 @@
 probin_file = probin
 n_cell = 25
-max_grid_size = 5
+max_grid_size = 1
 
 dt = 1.e-07
 ndt = 300
@@ -12,13 +12,13 @@ cvode_meth = 2
 cvode_itmeth = 2
 
 # Select CVODE Jacobian eval.
-cvode_iJac = 1
+cvode_iJac = 0
 
 # 1=full e, 2=full h
 cvode_iE = 2
 
 # choose sparse or dense
-cvode_iDense = 1
+cvode_iDense = 99
 
 # 1=cvode
 ivode = 1
