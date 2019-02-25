@@ -14,12 +14,24 @@
 #include <cvode/cvode_spils.h>         /* access to CVSpils interface */
 #include <sundials/sundials_types.h>   /* defs. of realtype, sunindextype      */
 #include <sundials/sundials_math.h>
+#include <cvode/cvode_impl.h>
 
 #include <nvector/nvector_cuda.h>
 
 //#include <cusolver/cvode_cusolver_spqr.h>
 
+#include <klu.h>
+#include <sunlinsol/sunlinsol_klu.h>
+#include <sundials/sundials_sparse.h>
+#include <sunmatrix/sunmatrix_sparse.h>
+
 #include <AMReX_Print.H>
+
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include <cusolverSp.h>
+#include <cusparse.h>
+#include <cuda_runtime_api.h>
 
 /**********************************/
 typedef struct CVodeUserData {
@@ -34,6 +46,13 @@ typedef struct CVodeUserData {
     double activation_units[289], prefactor_units[289], phase_units[289]; 
     int is_PD[289], troe_len[289], sri_len[289], nTB[289], *TBid[289];
     double *TB[289];
+    // Precond sparse stuff
+    // Device
+    int NNZ; 
+    int* csr_row_count_d;
+    int* csr_col_index_d;
+    double* csr_val_d;
+    double* csr_jac_d;
 }* UserData;
 
 /* Functions Called by the Solver */
@@ -54,6 +73,12 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 		realtype *P_in, 
 		realtype *dt_react, realtype *time, int *Init);
 
+static int Precond(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
+		booleantype *jcurPtr, realtype gamma, void *user_data);
+
+static int PSolve(realtype tn, N_Vector u, N_Vector fu, N_Vector r, 
+		N_Vector z, realtype gamma, realtype delta, int lr, void *user_data);
+
 void extern_cFree();
 
 /**********************************/
@@ -67,7 +92,7 @@ static int check_flag(void *flagvalue, const char *funcname, int opt);
 static void PrintFinalStats(void *cvode_mem);
 
 /* Stuff that comes from Fuego on Host */
-//extern "C" {
+extern "C" {
     //void imolecularWeight_(double * iwt);
     //void ckpy_(double * rho, double * T, double * y, int * iwrk, double * rwrk, double * P);
     void ckindx_(int * iwrk, double * rwrk, int * mm, int * kk, int * ii, int * nfit); 
@@ -84,7 +109,9 @@ static void PrintFinalStats(void *cvode_mem);
     //void ckwt_(int * iwrk, double * rwrk, double * wt);
     //void dwdot_(double * J, double * sc, double * Tp, int * consP);
     //void ajacobian_diag_(double * J, double * sc, double T, int consP);
-//}
+    void sparsity_info_precond_( int * njdata, int * consp);
+    void sparsity_preproc_precond_( int * rowVals, int * colPtrs, int * consP);
+}
 
 
 /**********************************/
@@ -101,6 +128,10 @@ __global__ void fKernelJacCSR(realtype t, void *user_data,
                                           realtype* csr_jac, 
                                           const int size, const int nnz, 
                                           const int nbatched);
+
+__global__ void fKernelComputeAJ(void *user_data, realtype *u_d, realtype *udot_d, realtype *gamma_d, realtype *csr_val);
+
+__global__ void fKernelFillJB(void *user_data, realtype *gamma);
 
 
 /* FROM FUEGO */

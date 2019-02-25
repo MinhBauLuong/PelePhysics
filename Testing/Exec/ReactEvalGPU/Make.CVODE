@@ -1,4 +1,5 @@
 ifeq ($(USE_CUDA_CVODE), TRUE)
+    LIBRARIES += -lcusolver -lcublas 
 ifeq ($(USE_CVODE_CUSOLVER), TRUE)
     ##DEFINES += -DCUDA_CVODE
     ##DEFINES += -DCVODE_CUSOLVER
@@ -9,3 +10,4 @@ endif
 
 INCLUDE_LOCATIONS += $(CVODE_LIB_DIR)/../../srcdir/include
 INCLUDE_LOCATIONS += $(CVODE_LIB_DIR)/..//include
+INCLUDE_LOCATIONS += /ccs/home/amfelden/SuiteSparse/include

@@ -1,14 +1,3 @@
-ifeq ($(USE_CUDA_CVODE), FALSE) 
-    cEXE_sources+=dodecane_wang.c
-    ifeq ($(USE_PYJAC), TRUE)
-        cEXE_sources+=jacob.c
-        cEXE_headers+=jacob.h
-        cEXE_sources+=jac_include.c
-        cEXE_headers+=jac_include.h
-    endif
-else
-    CEXE_sources+=dodecane_wang.cpp
-endif
-
+CEXE_sources+=dodecane_wang.cpp
 VPATH_LOCATIONS +=  $(CHEM_DIR)/PMFs
 
