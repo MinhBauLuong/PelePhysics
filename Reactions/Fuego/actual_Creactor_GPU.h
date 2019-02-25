@@ -14,12 +14,24 @@
 #include <cvode/cvode_spils.h>         /* access to CVSpils interface */
 #include <sundials/sundials_types.h>   /* defs. of realtype, sunindextype      */
 #include <sundials/sundials_math.h>
+#include <cvode/cvode_impl.h>
 
 #include <nvector/nvector_cuda.h>
 
 //#include <cusolver/cvode_cusolver_spqr.h>
 
+#include <klu.h>
+#include <sunlinsol/sunlinsol_klu.h>
+#include <sundials/sundials_sparse.h>
+#include <sunmatrix/sunmatrix_sparse.h>
+
 #include <AMReX_Print.H>
+
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include <cusolverSp.h>
+#include <cusparse.h>
+#include <cuda_runtime_api.h>
 
 /**********************************/
 typedef struct CVodeUserData {
@@ -34,6 +46,13 @@ typedef struct CVodeUserData {
     double activation_units[289], prefactor_units[289], phase_units[289]; 
     int is_PD[289], troe_len[289], sri_len[289], nTB[289], *TBid[289];
     double *TB[289];
+    // Precond sparse stuff
+    // Device
+    int NNZ; 
+    int* csr_row_count_d;
+    int* csr_col_index_d;
+    double* csr_val_d;
+    double* csr_jac_d;
 }* UserData;
 
 /* Functions Called by the Solver */
@@ -54,6 +73,12 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 		realtype *P_in, 
 		realtype *dt_react, realtype *time, int *Init);
 
+static int Precond(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
+		booleantype *jcurPtr, realtype gamma, void *user_data);
+
+static int PSolve(realtype tn, N_Vector u, N_Vector fu, N_Vector r, 
+		N_Vector z, realtype gamma, realtype delta, int lr, void *user_data);
+
 void extern_cFree();
 
 /**********************************/
@@ -67,24 +92,12 @@ static int check_flag(void *flagvalue, const char *funcname, int opt);
 static void PrintFinalStats(void *cvode_mem);
 
 /* Stuff that comes from Fuego on Host */
-//extern "C" {
-    //void imolecularWeight_(double * iwt);
-    //void ckpy_(double * rho, double * T, double * y, int * iwrk, double * rwrk, double * P);
+extern "C" {
     void ckindx_(int * iwrk, double * rwrk, int * mm, int * kk, int * ii, int * nfit); 
 
-    //void get_t_given_ey_(double * e, double * y, int * iwrk, double * rwrk, double * t, int *ierr); 
-    //void get_t_given_hy_(double * h, double * y, int * iwrk, double * rwrk, double * t, int *ierr); 
-    //void ckrhoy_(double * P, double * T, double * y, int * iwrk, double * rwrk, double * rho);
-    //void ckytcr_(double * rho, double * T, double * y, int * iwrk, double * rwrk, double * c);
-    //void ckcvms_(double * T, int * iwrk, double *  rwrk, double * cvms);
-    //void ckcpms_(double * T, int * iwrk, double *  rwrk, double * cpms);
-    //void ckums_(double * T, int * iwrk, double * rwrk, double * ums);
-    //void ckhms_(double * T, int * iwrk, double * rwrk, double * hms);
-    //void ckwc_(double * T, double * C, int * iwrk, double * rwrk, double * wdot);
-    //void ckwt_(int * iwrk, double * rwrk, double * wt);
-    //void dwdot_(double * J, double * sc, double * Tp, int * consP);
-    //void ajacobian_diag_(double * J, double * sc, double T, int consP);
-//}
+    void sparsity_info_precond_( int * njdata, int * consp);
+    void sparsity_preproc_precond_( int * rowVals, int * colPtrs, int * consP);
+}
 
 
 /**********************************/
@@ -101,6 +114,10 @@ __global__ void fKernelJacCSR(realtype t, void *user_data,
                                           realtype* csr_jac, 
                                           const int size, const int nnz, 
                                           const int nbatched);
+
+__global__ void fKernelComputeAJ(void *user_data, realtype *u_d, realtype *udot_d, realtype *gamma_d, realtype *csr_val);
+
+__global__ void fKernelFillJB(void *user_data, realtype *gamma);
 
 
 /* FROM FUEGO */
@@ -137,13 +154,14 @@ __device__ void ckubms_d(double * T, double * y_wk, double * ubms);
 /*compute the production rate for each species */
 __device__ void ckwc_d(double * T, double * C, double * wdot, void *user_data);
 /*compute the production rate for each species */
-__device__ void productionRate_d(double * wdot, double * sc, double T, void *user_data);
-/*compute the reaction Jacobian */
-__device__ void dwdot_d(double * J, double * sc, double * Tp, int * consP, void *user_data);
-__device__ void ajacobian_d(double * J, double * sc, double T, int consP, void *user_data);
-__device__ void comp_k_f_d(double * tc, double invT, double * k_f, double * Corr, double * sc, void *user_data);
+__device__ void productionRate_d(double * wdot, double * sc, double T, void * user_data);
+__device__ void comp_k_f_d(double * tc, double invT, double * k_f, double * Corr, double * sc, void * user_data);
 __device__ void comp_Kc_d(double * tc, double invT, double * Kc);
-__device__ void comp_qfqr_d(double *  qf, double * qr, double * sc, double * tc, double invT, void *user_data);
+__device__ void comp_qfqr_d(double *  qf, double * qr, double * sc, double * tc, double invT, void * user_data);
+/*compute the production rate for each species */
+__device__ void dwdot_d(double * J, double * sc, double * Tp, int * consP, void *user_data);
+/*compute the reaction Jacobian */
+__device__ void ajacobian_d(double * J, double * sc, double T, int consP, void *user_data);
 /*compute the g/(RT) at the given temperature */
 /*tc contains precomputed powers of T, tc[0] = log(T) */
 __device__ void gibbs_d(double * species, double *  tc);
@@ -155,7 +173,7 @@ __device__ void cv_R_d(double * species, double *  tc);
 __device__ void cp_R_d(double * species, double *  tc);
 /*compute d(Cp/R)/dT and d(Cv/R)/dT at the given temperature */
 /*tc contains precomputed powers of T, tc[0] = log(T) */
-__device__ void dcvpRdT_d(double * species, double * tc);
+__device__ void dcvpRdT_d(double * species, double *  tc);
 /*compute the e/(RT) at the given temperature */
 /*tc contains precomputed powers of T, tc[0] = log(T) */
 __device__ void speciesInternalEnergy_d(double * species, double *  tc);

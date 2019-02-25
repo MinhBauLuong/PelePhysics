@@ -17,8 +17,17 @@
   double *rhohsrc_ext = NULL;
   double *rYsrc = NULL;
   double *dt_save;
+  double *gamma_d;
   double *temp_old = NULL;
-  //UserData user_data;
+  cusparseMatDescr_t descrA;
+  cusolverSpHandle_t cusolverHandle;
+  cusparseHandle_t cusparseHandle;
+  csrqrInfo_t info;
+  void *buffer_qr = NULL;
+  size_t workspaceInBytes, internalDataInBytes;
+  cusolverStatus_t cusolver_status = CUSOLVER_STATUS_SUCCESS;
+  cusparseStatus_t cusparse_status = CUSPARSE_STATUS_SUCCESS;
+  cudaError_t cudaStat1 = cudaSuccess;
 
 /**********************************/
 /* Definitions */
@@ -55,6 +64,81 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
         user_data->ncells_d[0] = NCELLS;
         user_data->neqs_per_cell[0] = NEQ;
         user_data->flagP = iE_Creact; 
+
+        if ((iDense_Creact == 99) && (iJac_Creact == 1)) { 
+            int HP;
+            if (iE_Creact == 1) {
+                HP = 0;
+            } else {
+                HP = 1;
+            }
+            /* Precond data */ 
+            if (iverbose > 0) {
+                printf("Alloc stuff for Precond \n");
+                // Find sparsity pattern to fill structure of sparse matrix
+                sparsity_info_precond_(&(user_data->NNZ),&HP);
+                printf("--> SPARSE Preconditioner -- non zero entries %d represents %f %% fill pattern.\n", user_data->NNZ, user_data->NNZ/float((NEQ+1) * (NEQ+1)) *100.0);
+            }
+            cudaMallocManaged(&(user_data->csr_row_count_d), (NEQ+2) * sizeof(int));
+            cudaMallocManaged(&(user_data->csr_col_index_d), user_data->NNZ * sizeof(int));
+            cudaMallocManaged(&(user_data->csr_jac_d), user_data->NNZ * NCELLS * sizeof(double));
+            cudaMallocManaged(&(user_data->csr_val_d), user_data->NNZ * NCELLS * sizeof(double));
+
+            sparsity_preproc_precond_(user_data->csr_row_count_d, user_data->csr_col_index_d, &HP);
+            if (iverbose > 2) {
+                for (int i=0; i<NEQ+1; i++) {
+                    printf("\n row %d csr_row_count %d \n", i, user_data->csr_row_count_d[i+1]);
+                }
+            }
+
+            // Create Sparse batch QR solver
+            // qr info and matrix descriptor
+            cusolver_status = cusolverSpCreate(&cusolverHandle);
+            assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
+
+            cusparse_status = cusparseCreateMatDescr(&descrA); 
+            assert(cusparse_status == CUSPARSE_STATUS_SUCCESS);
+
+            cusparseSetMatType(descrA, CUSPARSE_MATRIX_TYPE_GENERAL);
+            cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ONE);
+ 
+            cusparse_status = cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ONE);
+            assert(cusparse_status == CUSPARSE_STATUS_SUCCESS);
+
+            cusolver_status = cusolverSpCreateCsrqrInfo(&info);
+            assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
+
+            // symbolic analysis
+            cusolver_status = cusolverSpXcsrqrAnalysisBatched(cusolverHandle,
+                                                      NEQ+1, // size per subsystem
+                                                      NEQ+1, // size per subsystem
+                                                      user_data->NNZ,
+                                                      descrA,
+                                                      user_data->csr_row_count_d,
+                                                      user_data->csr_col_index_d,
+                                                      info);
+            assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
+
+
+            // allocate working space 
+            cusolver_status = cusolverSpDcsrqrBufferInfoBatched(cusolverHandle,
+                                                      NEQ+1, // size per subsystem
+                                                      NEQ+1, // size per subsystem
+                                                      user_data->NNZ,
+                                                      descrA,
+                                                      user_data->csr_val_d,
+                                                      user_data->csr_row_count_d,
+                                                      user_data->csr_col_index_d,
+                                                      NCELLS,
+                                                      info,
+                                                      &internalDataInBytes,
+                                                      &workspaceInBytes);
+            assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
+            
+            cudaStat1 = cudaMalloc((void**)&buffer_qr, workspaceInBytes);
+            assert(cudaStat1 == cudaSuccess);
+
+        }
 
 	/* Initialize chemistry onto the device */
         initialize_chemistry_device(user_data);
@@ -117,8 +201,13 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
             printf("\n--> Using an Iterative Solver \n");
 
             /* Create the linear solver object */
-	    LS = SUNSPGMR(y, PREC_NONE, 0);
-	    if(check_flag((void *)LS, "SUNDenseLinearSolver", 0)) return(1);
+            if (iJac_Creact == 0) { 
+	        LS = SUNSPGMR(y, PREC_NONE, 0);
+	        if(check_flag((void *)LS, "SUNDenseLinearSolver", 0)) return(1);
+            } else { 
+                LS = SUNSPGMR(y, PREC_LEFT, 0);
+                if(check_flag((void *)LS, "SUNDenseLinearSolver", 0)) return(1);
+            }
 
 	    /* Set CVSpils linear solver to LS */
 	    flag = CVSpilsSetLinearSolver(cvode_mem, LS);
@@ -130,7 +219,20 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	if (iJac_Creact == 0) {
             printf("\n--> Without Analytical J\n");
 	} else {
-	    amrex::Abort("\n--> With Analytical J: not yet implemented");
+            printf("\n--> With Analytical J\n");
+	    if (iDense_Creact == 99) {
+                if (iverbose > 0) {
+                    printf("\n    (99)\n");
+		}
+	        /* Set the JAcobian-times-vector function */
+	        flag = CVSpilsSetJacTimes(cvode_mem, NULL, NULL);
+	        if(check_flag(&flag, "CVSpilsSetJacTimes", 1)) return(1);
+
+	        /* Set the preconditioner solve and setup functions */
+	        //flag = CVSpilsSetPreconditioner(cvode_mem, Precond, PSolve);
+	        flag = CVodeSetPreconditioner(cvode_mem, Precond, PSolve);
+	        if(check_flag(&flag, "CVSpilsSetPreconditioner", 1)) return(1);
+            }
 	}
 
         /* Set the max number of time steps */ 
@@ -144,6 +246,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	/* Define vectors to be used later in creact */
 	// GPU stuff: might want to rethink this and put everything in userdata
 	cudaMallocManaged(&dt_save, 1*sizeof(double));
+	cudaMallocManaged(&gamma_d, 1*sizeof(double));
 	if (iE_Creact == 1) { 
 	    cudaMallocManaged(&rhoe_init, NCELLS*sizeof(double));
 	    cudaMallocManaged(&rhoesrc_ext, NCELLS*sizeof(double));
@@ -243,36 +346,12 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
             rX_in[i] = rX_in[i] + (*dt_react) * rX_src_in[i];
 	}
 
-	if (*Init != 1) {
-	    int offset;
-	    for  (int tid = 0; tid < NCELLS; tid++) {
-		offset = tid * (NEQ + 1);
-	        temp_old[tid] = rY_in[offset + NEQ];
-	    }
-	}
-
-	/* tests HP PUT THIS ON DEVICE ! */
-        //for (int tid = 0; tid < NCELLS; tid ++) {
-	//    double rhov, energy, temp;
-	//    double MF[NEQ];
-        //    int * iwrk;
-        //    double *  rwrk;
-	//    int  lierr;
-	//    rhov = 0.0;
-        //    int offset = tid * (NEQ + 1); 
-        //    for (int k = 0; k < NEQ; k ++) {
-	//	rhov =  rhov + rY_in[offset + k];
+	//if (*Init != 1) {
+	//    int offset;
+	//    for  (int tid = 0; tid < NCELLS; tid++) {
+	//	offset = tid * (NEQ + 1);
+	//        temp_old[tid] = rY_in[offset + NEQ];
 	//    }
-        //    for (int k = 0; k < NEQ; k ++) {
-	//	MF[k] = rY_in[offset + k]/rhov;
-	//    }
-	//    energy = rX_in[tid]/rhov ;
-	//    if (iE_Creact == 1) { 
-	//        get_t_given_ey_(&energy, MF, iwrk, rwrk, &temp, &lierr);
-	//    } else {
-	//        get_t_given_hy_(&energy, MF, iwrk, rwrk, &temp, &lierr);
-	//    }
-	//    rY_in[offset + NEQ] =  temp;
 	//}
 
 	/* If in debug mode: print stats */
@@ -340,7 +419,6 @@ static int cF_RHS(realtype t, N_Vector y_in, N_Vector ydot_in,
 			    yvec_d, ydot_d, 
 			    rhoe_init, rhoesrc_ext, rYsrc);
 	    cuda_status = cudaDeviceSynchronize();
-	    //std::cout << "In fun_rhs, got cudaDeviceSynchronize error of: " << cudaGetErrorString(cuda_status) << std::endl;
 	    assert(cuda_status == cudaSuccess);
 	} else {
 	    unsigned block = 32;
@@ -349,13 +427,125 @@ static int cF_RHS(realtype t, N_Vector y_in, N_Vector ydot_in,
 			    yvec_d, ydot_d, 
 			    rhoh_init, rhohsrc_ext, rYsrc);
 	    cuda_status = cudaDeviceSynchronize();
-	    //std::cout << "In fun_rhs, got cudaDeviceSynchronize error of: " << cudaGetErrorString(cuda_status) << std::endl;
 	    assert(cuda_status == cudaSuccess);
 	}
 	//end = std::chrono::system_clock::now();
 	//std::chrono::duration<double> elapsed_seconds = end - start;
 	//std::cout << " RHS duration " << elapsed_seconds.count() << std::endl;
 	return(0);
+}
+
+static int Precond(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
+               booleantype *jcurPtr, realtype gamma, void *user_data) {
+
+        // allocate working space 
+        UserData udata = static_cast<CVodeUserData*>(user_data);
+
+        cudaError_t cuda_status = cudaSuccess;
+
+        /* Get Device pointers for Kernel call */
+        realtype *u_d      = N_VGetDeviceArrayPointer_Cuda(u);
+        realtype *udot_d   = N_VGetDeviceArrayPointer_Cuda(fu);
+
+	cudaMemcpy(dt_save, &tn, sizeof(double), cudaMemcpyHostToDevice);
+
+	cudaMemcpy(gamma_d, &gamma, sizeof(double), cudaMemcpyHostToDevice);
+
+        if (jok) {
+	    unsigned block = 32;
+	    unsigned grid = NCELLS/32 + 1;
+	    fKernelComputeAJ<<<grid,block>>>(user_data, u_d, udot_d,gamma_d, udata->csr_val_d);
+            cuda_status = cudaDeviceSynchronize();  
+            assert(cuda_status == cudaSuccess);
+
+            *jcurPtr = SUNFALSE;
+        } else {
+	    unsigned block = 32;
+	    unsigned grid = NCELLS/32 + 1;
+	    fKernelComputeAJ<<<grid,block>>>(user_data, u_d, udot_d,gamma_d, udata->csr_val_d);
+            cuda_status = cudaDeviceSynchronize();  
+            assert(cuda_status == cudaSuccess);
+
+            *jcurPtr = SUNTRUE;
+        }
+
+        cusolver_status = cusolverSpDcsrqrBufferInfoBatched(cusolverHandle,NEQ+1,NEQ+1, 
+                                (udata->NNZ),
+                                descrA,
+                                udata->csr_val_d,
+                                udata->csr_row_count_d,
+                                udata->csr_col_index_d,
+                                NCELLS,
+                                info,
+                                &internalDataInBytes,
+                                &workspaceInBytes);
+
+        assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
+
+	return(0);
+}
+
+static int PSolve(realtype tn, N_Vector u, N_Vector fu, N_Vector r, N_Vector z,
+                  realtype gamma, realtype delta, int lr, void *user_data)
+{
+
+        cudaError_t cuda_status = cudaSuccess;
+
+        UserData udata = static_cast<CVodeUserData*>(user_data);
+
+        /* Get Device pointers for Kernel call */
+        realtype *u_d      = N_VGetDeviceArrayPointer_Cuda(u);
+        realtype *udot_d   = N_VGetDeviceArrayPointer_Cuda(fu);
+
+        realtype *z_d      = N_VGetDeviceArrayPointer_Cuda(z);
+        realtype *r_d      = N_VGetDeviceArrayPointer_Cuda(r);
+
+        cusolver_status = cusolverSpDcsrqrsvBatched(cusolverHandle,NEQ+1,NEQ+1,
+                               (udata->NNZ),
+                               descrA,
+                               udata->csr_val_d,
+                               udata->csr_row_count_d,
+                               udata->csr_col_index_d,
+                               r_d, 
+                               z_d,
+                               NCELLS,
+                               info,
+                               buffer_qr);
+
+
+        /* Checks */
+        N_VCopyFromDevice_Cuda(z);
+        N_VCopyFromDevice_Cuda(r);
+
+        realtype *z_h      = N_VGetHostArrayPointer_Cuda(z);
+        realtype *r_h      = N_VGetHostArrayPointer_Cuda(r);
+
+        if (iverbose > 4) {
+            for(int batchId = 0 ; batchId < NCELLS; batchId++){
+                // measure |bj - Aj*xj|
+                double *csrValAj = (udata->csr_val_d) + batchId * (udata->NNZ);
+                double *xj       = z_h + batchId * (NEQ+1);
+                double *bj       = r_h + batchId * (NEQ+1);
+                // sup| bj - Aj*xj|
+                double sup_res = 0;
+                for(int row = 0 ; row < (NEQ+1) ; row++){
+                    const int start = udata->csr_row_count_d[row] - 1;
+                    const int end = udata->csr_row_count_d[row +1] - 1;
+                    double Ax = 0.0; // Aj(row,:)*xj
+                    for(int colidx = start ; colidx < end ; colidx++){
+                        const int col = udata->csr_col_index_d[colidx] - 1;
+                        const double Areg = csrValAj[colidx];
+                        const double xreg = xj[col];
+                        Ax = Ax + Areg * xreg;
+                    }
+                    double r = bj[row] - Ax;
+                    sup_res = (sup_res > fabs(r))? sup_res : fabs(r);
+                }
+                printf("batchId %d: sup|bj - Aj*xj| = %E \n", batchId, sup_res);
+            }
+        }
+
+        return(0);
 }
 
 
@@ -615,13 +805,13 @@ static int check_flag(void *flagvalue, const char *funcname, int opt)
 /* 
  * Non device functions
  */
-void ckindx_(int * iwrk, double * rwrk, int * mm, int * kk, int * ii, int * nfit)
-{
-    *mm = 4;
-    *kk = 56;
-    *ii = 289;
-    *nfit = -1; /*Why do you need this anyway ?  */
-}
+//void ckindx_(int * iwrk, double * rwrk, int * mm, int * kk, int * ii, int * nfit)
+//{
+//    *mm = 4;
+//    *kk = 56;
+//    *ii = 289;
+//    *nfit = -1; /*Why do you need this anyway ?  */
+//}
 
 //void imolecularWeight_(double * iwt)
 //{
