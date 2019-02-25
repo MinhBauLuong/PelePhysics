@@ -277,8 +277,14 @@ contains
              rhoY(i,j,k,nspec+1) = eos_state % T
              ! rhoY_src(:nspec) = rhoForcingSpecs
              rhoY_src(i,j,k,1:nspec) = Y_forcing_in(i+1,1:nspec)
+             if (iE_quienaqun == 1) then
+                 ! all in e
+                 rhoE(i,j,k,1) = eos_state % e * eos_state % rho
+             else
+                 ! all in h
+                 rhoE(i,j,k,1) = eos_state % h * eos_state % rho
+             end if
              ! all in h
-             rhoE(i,j,k,1) = eos_state % h * eos_state % rho
              !rhoE src ext
              rhoEs(i,j,k,1) = Y_forcing_in(i+1,nspec+1)
 

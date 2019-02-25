@@ -1,5 +1,5 @@
 probin_file = probin
-n_cell = 25
+n_cell = 512
 max_grid_size = 1
 
 dt = 1.e-07
@@ -12,7 +12,7 @@ cvode_meth = 2
 cvode_itmeth = 2
 
 # Select CVODE Jacobian eval.
-cvode_iJac = 0
+cvode_iJac = 1
 
 # 1=full e, 2=full h
 cvode_iE = 2
@@ -28,4 +28,4 @@ write_plotfile = 1
 do_tiling = 0
 
 amr.plot_file       = plt
-txtfile_in          = 1D_y_7530_DOD_save
+txtfile_in          = 1D_y_7530_DOD
