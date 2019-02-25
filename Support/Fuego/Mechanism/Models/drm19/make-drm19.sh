@@ -14,7 +14,5 @@ ${FUEGO_PYTHON} ${FMC} -mechanism=${CHEMINP} -thermo=${THERMINP} -name=${CHEMC}
 echo Compiling ${FINALFILE}...
 cat ${CHEMC} \
           ${HEADERDIR}/header.start\
-          ${HEADERDIR}/header.mec   ${CHEMINP}\
-          ${HEADERDIR}/header.therm ${THERMINP}\
           ${HEADERDIR}/header.end > ${FINALFILE}
 rm -f ${CHEMC} ${CHEMLK} ${LOG} 
