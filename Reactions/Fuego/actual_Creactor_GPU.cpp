@@ -589,6 +589,110 @@ static int PSolve(realtype tn, N_Vector u, N_Vector fu, N_Vector r, N_Vector z,
 /*
  * CUDA kernels
  */
+//__global__ void fKernelCompute(void *user_data, realtype *u_d, realtype *udot_d, double *gamma)
+//{
+//  UserData udata = static_cast<CVodeUserData*>(user_data);
+//
+//  int tid = blockDim.x * blockIdx.x + threadIdx.x;
+//
+//  if (tid < udata->ncells_d[0]) {
+//      /* offsets */
+//      int u_offset = tid * (udata->neqs_per_cell[0] + 1); 
+//      int jac_offset = tid * udata->NNZ;
+//      realtype* u_curr = u_d + u_offset;
+//      realtype* csr_jac_cell = udata->csr_jac_d + jac_offset;
+//
+//      /* Fill the Sps Mat */
+//      int nbVals;
+//      for (int i = 1; i < udata->neqs_per_cell[0]+2; i++) {
+//          nbVals = udata->csr_row_count_d[i]-udata->csr_row_count_d[i-1];
+//          printf("Row %d : we have %d nonzero values \n", i-1, nbVals);
+//          for (int j = 0; j < nbVals; j++) {
+//    	      int idx = udata->csr_col_index_d[ udata->csr_row_count_d[i-1] + j ];
+//              /* Scale by -gamma */
+//              /* Add identity matrix */
+//    	      if (idx == (i-1)) {
+//                  udata->csr_jac_cell[ udata->csr_row_count_d[i-1] + j ] = 1.0 - gamma * Jmat[ idx ][ idx ]; 
+//    	      } else {
+//                  udata->csr_jac_cell[ udata->csr_row_count_d[i-1] + j ] = - gamma * Jmat[ idx ][ i-1 ]; 
+//    	      }
+//          }
+//      }
+//
+//  }
+//
+//}
+
+__global__ void fKernelComputeAJ(void *user_data, realtype *u_d, realtype *udot_d, double * gamma, double * csr_val_arg)
+{
+  UserData udata = static_cast<CVodeUserData*>(user_data);
+
+  int tid = blockDim.x * blockIdx.x + threadIdx.x;
+          
+  if (tid < udata->ncells_d[0]) {
+      /* local tmp vars */
+      realtype activity[56];
+      realtype molecular_weight[56];
+      realtype temp;
+      realtype Jmat[3249];
+
+      /* offsets */
+      int u_offset = tid * (udata->neqs_per_cell[0] + 1); 
+      int jac_offset = tid * udata->NNZ;
+      realtype* u_curr = u_d + u_offset;
+      //realtype* csr_jac_cell = udata->csr_jac_d + jac_offset;
+      //realtype* csr_val_cell = udata->csr_val_d + jac_offset;
+      realtype* csr_jac_cell = udata->csr_jac_d + jac_offset;
+      realtype* csr_val_cell = csr_val_arg + jac_offset;
+
+      /* MW CGS */
+      molecularWeight_d(molecular_weight);
+      /* temp */
+      temp = u_curr[udata->neqs_per_cell[0]];
+      /* Yks, C CGS*/
+      for (int i = 0; i < udata->neqs_per_cell[0]; i++){
+          activity[i] = u_d[i]/(molecular_weight[i]);
+      }
+      /* Fuego calls on device 
+       * NB to be more accurate should use energy to
+       * recompute temp ...      */
+      if (udata->flagP == 1){
+          int consP = 0 ;
+          dwdot_d(Jmat, activity, &temp, &consP, user_data);
+      } else {
+          int consP = 1 ;
+          dwdot_d(Jmat, activity, &temp, &consP, user_data);
+      }
+      /* renorm the DenseMat */
+      for (int i = 0; i < udata->neqs_per_cell[0]; i++){
+	  for (int k = 0; k < udata->neqs_per_cell[0]; k++){
+              Jmat[k*(udata->neqs_per_cell[0]+1)+i] = Jmat[k*(udata->neqs_per_cell[0]+1)+i] * molecular_weight[i] / molecular_weight[k];
+	  }
+	  Jmat[i*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] = Jmat[i*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] / molecular_weight[i]; 
+          Jmat[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+i] = Jmat[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+i] * molecular_weight[i]; 
+      }
+      /* Fill the Sps Mat */
+      int nbVals;
+      for (int i = 1; i < udata->neqs_per_cell[0]+2; i++) {
+          nbVals = udata->csr_row_count_d[i]-udata->csr_row_count_d[i-1];
+          for (int j = 0; j < nbVals; j++) {
+    	      int idx = udata->csr_col_index_d[ udata->csr_row_count_d[i-1] + j - 1 ] - 1;
+              /* Scale by -gamma */
+              /* Add identity matrix */
+    	      if (idx == (i-1)) {
+                  csr_val_cell[ udata->csr_row_count_d[i-1] + j - 1 ] = 1.0 - (*gamma) * Jmat[ idx * (udata->neqs_per_cell[0]+1) + idx ]; 
+                  csr_jac_cell[ udata->csr_row_count_d[i-1] + j - 1 ] = Jmat[ idx * (udata->neqs_per_cell[0]+1) + idx ]; 
+    	      } else {
+                  csr_val_cell[ udata->csr_row_count_d[i-1] + j - 1 ] = - (*gamma) * Jmat[ idx * (udata->neqs_per_cell[0]+1) + i-1 ]; 
+                  csr_jac_cell[ udata->csr_row_count_d[i-1] + j - 1 ] = Jmat[ idx * (udata->neqs_per_cell[0]+1) + i-1 ]; 
+    	      }
+          }
+      }
+
+  }
+
+}
+
 __global__ void fKernelSpec(realtype *dt, void *user_data, 
 		            realtype *yvec_d, realtype *ydot_d,  
 		            double *rhoX_init, double *rhoXsrc_ext, double *rYs)
@@ -729,9 +833,6 @@ void extern_cFree(){
 	    cudaFree(rhohsrc_ext);
 	}
 	cudaFree(rYsrc);
-        //finalize_chemistry_device(user_data); 
-	//cudaFree(ncells_d);
-	//cudaFree(nspec);
 }
 
 /* Get and print some final statistics */
@@ -805,143 +906,6 @@ static int check_flag(void *flagvalue, const char *funcname, int opt)
 /* 
  * Non device functions
  */
-//void ckindx_(int * iwrk, double * rwrk, int * mm, int * kk, int * ii, int * nfit)
-//{
-//    *mm = 4;
-//    *kk = 56;
-//    *ii = 289;
-//    *nfit = -1; /*Why do you need this anyway ?  */
-//}
-
-//void imolecularWeight_(double * iwt)
-//{
-//    iwt[0] = 0.992093; /*H */
-//    iwt[1] = 0.062502; /*O */
-//    iwt[2] = 0.058798; /*OH */
-//    iwt[3] = 0.030297; /*HO2 */
-//    iwt[4] = 0.496047; /*H2 */
-//    iwt[5] = 0.055508; /*H2O */
-//    iwt[6] = 0.029399; /*H2O2 */
-//    iwt[7] = 0.031251; /*O2 */
-//    iwt[8] = 0.076810; /*CH */
-//    iwt[9] = 0.071291; /*CH2 */
-//    iwt[10] = 0.071291; /*CH2* */
-//    iwt[11] = 0.066511; /*CH3 */
-//    iwt[12] = 0.062332; /*CH4 */
-//    iwt[13] = 0.034461; /*HCO */
-//    iwt[14] = 0.033304; /*CH2O */
-//    iwt[15] = 0.032222; /*CH3O */
-//    iwt[16] = 0.032222; /*CH2OH */
-//    iwt[17] = 0.031209; /*CH3OH */
-//    iwt[18] = 0.035701; /*CO */
-//    iwt[19] = 0.022722; /*CO2 */
-//    iwt[20] = 0.039952; /*C2H */
-//    iwt[21] = 0.038405; /*C2H2 */
-//    iwt[22] = 0.036974; /*C2H3 */
-//    iwt[23] = 0.035645; /*C2H4 */
-//    iwt[24] = 0.034409; /*C2H5 */
-//    iwt[25] = 0.033256; /*C2H6 */
-//    iwt[26] = 0.024373; /*HCCO */
-//    iwt[27] = 0.023788; /*CH2CO */
-//    iwt[28] = 0.023231; /*CH3CO */
-//    iwt[29] = 0.023231; /*CH2CHO */
-//    iwt[30] = 0.022700; /*CH3CHO */
-//    iwt[31] = 0.025603; /*C3H3 */
-//    iwt[32] = 0.024959; /*pC3H4 */
-//    iwt[33] = 0.024959; /*aC3H4 */
-//    iwt[34] = 0.024347; /*aC3H5 */
-//    iwt[35] = 0.024347; /*CH3CCH2 */
-//    iwt[36] = 0.023764; /*C3H6 */
-//    iwt[37] = 0.023208; /*nC3H7 */
-//    iwt[38] = 0.023208; /*iC3H7 */
-//    iwt[39] = 0.017837; /*C2H3CHO */
-//    iwt[40] = 0.019976; /*C4H2 */
-//    iwt[41] = 0.019582; /*iC4H3 */
-//    iwt[42] = 0.019203; /*C4H4 */
-//    iwt[43] = 0.018838; /*iC4H5 */
-//    iwt[44] = 0.018838; /*C4H5-2 */
-//    iwt[45] = 0.018487; /*C4H6 */
-//    iwt[46] = 0.018487; /*C4H612 */
-//    iwt[47] = 0.018487; /*C4H6-2 */
-//    iwt[48] = 0.018149; /*C4H7 */
-//    iwt[49] = 0.017823; /*C4H81 */
-//    iwt[50] = 0.017508; /*pC4H9 */
-//    iwt[51] = 0.005871; /*NC12H26 */
-//    iwt[52] = 0.011882; /*C6H12 */
-//    iwt[53] = 0.012026; /*C6H11 */
-//    iwt[54] = 0.014258; /*C5H10 */
-//    iwt[55] = 0.035697; /*N2 */
-//
-//    return;
-//}
-
-//void ckpy_(double * rho, double *  T, double * y, int * iwrk, double * rwrk, double * P)
-//{
-//    double imw[56];/* inv molecular weight array */
-//    imolecularWeight_(imw);
-//    double YOW = 0;/* for computing mean MW */
-//    YOW += y[0]*imw[0]; /*H */
-//    YOW += y[1]*imw[1]; /*O */
-//    YOW += y[2]*imw[2]; /*OH */
-//    YOW += y[3]*imw[3]; /*HO2 */
-//    YOW += y[4]*imw[4]; /*H2 */
-//    YOW += y[5]*imw[5]; /*H2O */
-//    YOW += y[6]*imw[6]; /*H2O2 */
-//    YOW += y[7]*imw[7]; /*O2 */
-//    YOW += y[8]*imw[8]; /*CH */
-//    YOW += y[9]*imw[9]; /*CH2 */
-//    YOW += y[10]*imw[10]; /*CH2* */
-//    YOW += y[11]*imw[11]; /*CH3 */
-//    YOW += y[12]*imw[12]; /*CH4 */
-//    YOW += y[13]*imw[13]; /*HCO */
-//    YOW += y[14]*imw[14]; /*CH2O */
-//    YOW += y[15]*imw[15]; /*CH3O */
-//    YOW += y[16]*imw[16]; /*CH2OH */
-//    YOW += y[17]*imw[17]; /*CH3OH */
-//    YOW += y[18]*imw[18]; /*CO */
-//    YOW += y[19]*imw[19]; /*CO2 */
-//    YOW += y[20]*imw[20]; /*C2H */
-//    YOW += y[21]*imw[21]; /*C2H2 */
-//    YOW += y[22]*imw[22]; /*C2H3 */
-//    YOW += y[23]*imw[23]; /*C2H4 */
-//    YOW += y[24]*imw[24]; /*C2H5 */
-//    YOW += y[25]*imw[25]; /*C2H6 */
-//    YOW += y[26]*imw[26]; /*HCCO */
-//    YOW += y[27]*imw[27]; /*CH2CO */
-//    YOW += y[28]*imw[28]; /*CH3CO */
-//    YOW += y[29]*imw[29]; /*CH2CHO */
-//    YOW += y[30]*imw[30]; /*CH3CHO */
-//    YOW += y[31]*imw[31]; /*C3H3 */
-//    YOW += y[32]*imw[32]; /*pC3H4 */
-//    YOW += y[33]*imw[33]; /*aC3H4 */
-//    YOW += y[34]*imw[34]; /*aC3H5 */
-//    YOW += y[35]*imw[35]; /*CH3CCH2 */
-//    YOW += y[36]*imw[36]; /*C3H6 */
-//    YOW += y[37]*imw[37]; /*nC3H7 */
-//    YOW += y[38]*imw[38]; /*iC3H7 */
-//    YOW += y[39]*imw[39]; /*C2H3CHO */
-//    YOW += y[40]*imw[40]; /*C4H2 */
-//    YOW += y[41]*imw[41]; /*iC4H3 */
-//    YOW += y[42]*imw[42]; /*C4H4 */
-//    YOW += y[43]*imw[43]; /*iC4H5 */
-//    YOW += y[44]*imw[44]; /*C4H5-2 */
-//    YOW += y[45]*imw[45]; /*C4H6 */
-//    YOW += y[46]*imw[46]; /*C4H612 */
-//    YOW += y[47]*imw[47]; /*C4H6-2 */
-//    YOW += y[48]*imw[48]; /*C4H7 */
-//    YOW += y[49]*imw[49]; /*C4H81 */
-//    YOW += y[50]*imw[50]; /*pC4H9 */
-//    YOW += y[51]*imw[51]; /*NC12H26 */
-//    YOW += y[52]*imw[52]; /*C6H12 */
-//    YOW += y[53]*imw[53]; /*C6H11 */
-//    YOW += y[54]*imw[54]; /*C5H10 */
-//    YOW += y[55]*imw[55]; /*N2 */
-//    *P = *rho * 8.31451e+07 * (*T) * YOW; /*P = rho*R*T/W */
-//
-//    return;
-//}
-
-
 
 /*
  * CUDA device functions

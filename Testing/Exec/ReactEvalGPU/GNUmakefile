@@ -24,6 +24,7 @@ FUEGO_GAS  = TRUE
 
 #######################
 #include ./Make.cvodeFiniterface 
+include Make.CVODE
 
 USE_DVODE=FALSE
 ifeq ($(USE_DVODE), TRUE)
@@ -33,7 +34,7 @@ endif
 USE_SUNDIALS_3x4x=TRUE
 #CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/instdir/lib/ 
 
-USE_KLU = FALSE
+USE_KLU = TRUE
 ifeq ($(USE_KLU), TRUE)
     DEFINES  += -DUSE_KLU
 endif
@@ -74,4 +75,3 @@ Blocs   := .
 
 include $(PELE_PHYSICS_HOME)/Testing/Exec/Make.PelePhysics
 include $(AMREX_HOME)/Src/Amr/Make.package 
-include Make.CVODE

@@ -94,7 +94,6 @@ static void PrintFinalStats(void *cvode_mem);
 /* Stuff that comes from Fuego on Host */
 extern "C" {
     void ckindx_(int * iwrk, double * rwrk, int * mm, int * kk, int * ii, int * nfit); 
-
     void sparsity_info_precond_( int * njdata, int * consp);
     void sparsity_preproc_precond_( int * rowVals, int * colPtrs, int * consP);
 }

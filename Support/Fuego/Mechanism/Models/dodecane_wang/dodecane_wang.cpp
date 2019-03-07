@@ -411,7 +411,7 @@ void DWDOT_PRECOND(double *   J, double *   sc, double *   Tp, int * HP);
 void SPARSITY_INFO(int * nJdata, int * consP, int NCELLS);
 void SPARSITY_INFO_PRECOND(int * nJdata, int * consP);
 void SPARSITY_PREPROC(int * rowVals, int * colPtrs, int * consP, int NCELLS);
-void SPARSITY_PREPROC_PRECOND(int * rowVals, int * colPtrs, int * consP);
+void SPARSITY_PREPROC_PRECOND(int * rowPtr, int *   colIndx, int * consP);
 void aJacobian(double *   J, double *   sc, double T, int consP);
 void aJacobian_precond(double *   J, double *   sc, double T, int HP);
 void dcvpRdT(double *   species, double *   tc);
@@ -22776,10 +22776,42 @@ void SPARSITY_INFO( int * nJdata, int * consP, int NCELLS)
     return;
 }
 
+///*compute the sparsity pattern of the simplified precond Jacobian */
+//void SPARSITY_PREPROC_PRECOND(int * rowVals, int *   colPtrs, int * consP)
+//{
+//    double c[56];
+//    double J[3249];
+//
+//    for (int k=0; k<56; k++) {
+//        c[k] = 1.0/ 56.000000 ;
+//    }
+//
+//    aJacobian_precond(J, c, 1500.0, *consP);
+//
+//    colPtrs[0] = 0;
+//    int nJdata_tmp = 0;
+//    for (int k=0; k<57; k++) {
+//        for (int l=0; l<57; l++) {
+//            if (k == l) {
+//                rowVals[nJdata_tmp] = l; 
+//                nJdata_tmp = nJdata_tmp + 1; 
+//            } else {
+//                if(J[57*k + l] != 0.0) {
+//                    rowVals[nJdata_tmp] = l; 
+//                    nJdata_tmp = nJdata_tmp + 1; 
+//                }
+//            }
+//        }
+//        colPtrs[k+1] = nJdata_tmp;
+//    }
+//
+//    return;
+//}
+
 
 
 /*compute the sparsity pattern of the simplified precond Jacobian */
-void SPARSITY_PREPROC_PRECOND(int * rowVals, int *   colPtrs, int * consP)
+void SPARSITY_PREPROC_PRECOND(int * rowPtr, int *   colIndx,int * consP)
 {
     double c[56];
     double J[3249];
@@ -22790,21 +22822,23 @@ void SPARSITY_PREPROC_PRECOND(int * rowVals, int *   colPtrs, int * consP)
 
     aJacobian_precond(J, c, 1500.0, *consP);
 
-    colPtrs[0] = 0;
-    int nJdata_tmp = 0;
-    for (int k=0; k<57; k++) {
-        for (int l=0; l<57; l++) {
+    rowPtr[0] = 1;
+    int nJdata_tmp = 1;
+    for (int l=0; l<57; l++) {
+        for (int k=0; k<57; k++) {
             if (k == l) {
-                rowVals[nJdata_tmp] = l; 
+                //colIndx[nJdata_tmp-1] = l; 
+                colIndx[nJdata_tmp-1] = l+1; 
                 nJdata_tmp = nJdata_tmp + 1; 
             } else {
                 if(J[57*k + l] != 0.0) {
-                    rowVals[nJdata_tmp] = l; 
+                    //colIndx[nJdata_tmp-1] = k; 
+                    colIndx[nJdata_tmp-1] = k+1; 
                     nJdata_tmp = nJdata_tmp + 1; 
                 }
             }
         }
-        colPtrs[k+1] = nJdata_tmp;
+        rowPtr[l+1] = nJdata_tmp;
     }
 
     return;
