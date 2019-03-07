@@ -1,4 +1,4 @@
-cEXE_sources+=Aromatic_KrNara.c
+CEXE_sources+=Aromatic_KrNara.cpp
 
 VPATH_LOCATIONS +=  $(CHEM_DIR)/PMFs
 

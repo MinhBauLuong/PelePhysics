@@ -278,7 +278,7 @@
 #endif
 #define DWDOT_PRECOND dwdot_precond_
 #define SPARSITY_INFO sparsity_info_
-#define SPARSITY_INFO_PRECOND sparsity_info_precond_
+#define SPARSITY_INFO_PRECOND sparsity_info_precond_ 
 #define SPARSITY_PREPROC sparsity_preproc_
 #define SPARSITY_PREPROC_PRECOND sparsity_preproc_precond_
 #define VCKHMS vckhms_
@@ -22720,7 +22720,7 @@ void DWDOT(double *   J, double *   sc, double *   Tp, int * consP)
     return;
 }
 
-/*compute the sparsity pattern of the approximate precond Jacobian */
+/*compute the sparsity pattern of simplified Jacobian */
 void SPARSITY_INFO_PRECOND( int * nJdata, int * consP)
 {
     double c[56];
@@ -22777,6 +22777,7 @@ void SPARSITY_INFO( int * nJdata, int * consP, int NCELLS)
 }
 
 
+
 /*compute the sparsity pattern of the simplified precond Jacobian */
 void SPARSITY_PREPROC_PRECOND(int * rowVals, int *   colPtrs, int * consP)
 {
@@ -22809,7 +22810,7 @@ void SPARSITY_PREPROC_PRECOND(int * rowVals, int *   colPtrs, int * consP)
     return;
 }
 
-/*compute the sparsity pattern Jacobian */
+/*compute the sparsity pattern of the Jacobian */
 void SPARSITY_PREPROC(int * rowVals, int * colPtrs, int * consP, int NCELLS)
 {
     double c[56];
@@ -22826,17 +22827,17 @@ void SPARSITY_PREPROC(int * rowVals, int * colPtrs, int * consP, int NCELLS)
     colPtrs[0] = 0;
     int nJdata_tmp = 0;
     for (int nc=0; nc<NCELLS; nc++) {
-	offset_row = nc * 57;
-	offset_col = nc * 57;
-	for (int k=0; k<57; k++) {
+        offset_row = nc * 57;
+        offset_col = nc * 57;
+        for (int k=0; k<57; k++) {
             for (int l=0; l<57; l++) {
-		if(J[57*k + l] != 0.0) {
+                if(J[57*k + l] != 0.0) {
                     rowVals[nJdata_tmp] = l + offset_row; 
                     nJdata_tmp = nJdata_tmp + 1; 
                 }
-	    }
+            }
             colPtrs[offset_col + (k + 1)] = nJdata_tmp;
-	}
+        }
     }
 
     return;

@@ -28,6 +28,7 @@
   double *rhohsrc_ext = NULL;
   double *rYsrc = NULL;
   double temp_old = 0;
+  double temp_save = 0;
   bool InitPartial = false;
   bool FirstTimePrecond = true;
   UserData data = NULL;
@@ -173,7 +174,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	    int HP = 0;
 	    sparsity_info_(&nJdata, &HP, 1);
             printf("--> SPARSE solver -- non zero entries %d represents %f %% sparsity pattern.", nJdata, nJdata/float((NEQ+1) * (NEQ+1)) *100.0);
-	    amrex::Abort("\n--> Direct Sparse / Iterative Solvers not yet implemented ...\n");
+	    amrex::Abort("\n \n");
 	}
 
 	if (iJac_Creact == 0) {
@@ -217,7 +218,7 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 	}
 
         /* Set the max number of time steps */ 
-	flag = CVodeSetMaxNumSteps(cvode_mem, 100000);
+	flag = CVodeSetMaxNumSteps(cvode_mem, 10000);
 	if(check_flag(&flag, "CVodeSetMaxNumSteps", 1)) return(1);
 
         /* Set the max order */ 
@@ -557,17 +558,17 @@ static int cJac_KLU(realtype tn, N_Vector u, N_Vector fu, SUNMatrix J,
   }
 
   /* Temp vectors */
-  realtype temp_save, temp;
+  realtype temp_save_lcl, temp;
   realtype activity[NEQ];
   realtype Jmat_tmp[(NEQ+1)*(NEQ+1)];
   int tid, offset, nbVals, idx;
-  temp_save = 0.0;
+  temp_save_lcl = 0.0;
   for (tid = 0; tid < NCELLS; tid ++) {
       offset = tid * (NEQ + 1); 
       /* temp */
       temp = ydata[offset + NEQ];
       /* Do we recompute Jac ? */
-      if (fabs(temp - temp_save) > 1.0) {
+      if (fabs(temp - temp_save_lcl) > 1.0) {
           for (int i = 0; i < NEQ; i++){
               activity[i] = ydata[offset + i]/(molecular_weight[i]);
           }
@@ -580,7 +581,7 @@ static int cJac_KLU(realtype tn, N_Vector u, N_Vector fu, SUNMatrix J,
               consP = 1;
               dwdot_(Jmat_tmp, activity, &temp, &consP);
           }
-	  temp_save = temp;
+	  temp_save_lcl = temp;
 	  /* rescale */
           for (int i = 0; i < NEQ; i++) {
               for (int k = 0; k < NEQ; k++) {
@@ -716,22 +717,23 @@ static int Precond_sparse(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
   udata = N_VGetArrayPointer(u);
 
   //start_Jcomp = std::chrono::system_clock::now();
+  //printf("temp_save %f \n",temp_save);
   if (jok) {
         /* jok = SUNTRUE: Copy Jbd to P */
         *jcurPtr = SUNFALSE;
   } else {
         /* Temp vectors */
-        realtype temp, temp_save;
+        realtype temp, temp_save_lcl;
         realtype Jmat[(NEQ+1)*(NEQ+1)];
         realtype activity[NEQ];
 	int offset,nbVals,idx;
-        temp_save = 0.0;
+        temp_save_lcl = 0.0;
         for (tid = 0; tid < NCELLS; tid ++) {
             offset = tid * (NEQ + 1); 
             /* temp */
             temp = udata[offset + NEQ];
             /* Do we recompute Jac ? */
-            if (fabs(temp - temp_save) > 1.0) {
+            if (fabs(temp - temp_save_lcl) > 1.0) {
                 for (int i = 0; i < NEQ; i++){
 		    activity[i] = udata[offset + i]/(molecular_weight[i]);
                 }
@@ -750,7 +752,7 @@ static int Precond_sparse(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
                     (Jbd[tid][tid])[NEQ][i] = Jmat[NEQ*(NEQ+1) + i] * molecular_weight[i];
                 }
 	        (Jbd[tid][tid])[NEQ][NEQ] = Jmat[(NEQ+1)*(NEQ+1)-1];
-	        temp_save = temp;
+	        temp_save_lcl = temp;
 	    } else {
 		/* if not: copy the one from prev cell */
 		for (int i = 0; i < NEQ+1; i++) {

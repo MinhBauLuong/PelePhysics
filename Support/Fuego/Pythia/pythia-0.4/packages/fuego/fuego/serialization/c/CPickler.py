@@ -814,7 +814,9 @@ class CPickler(CMill):
             '#endif',
             '#define DWDOT_PRECOND DWDOT_PRECOND',
             '#define SPARSITY_INFO SPARSITY_INFO',
+            '#define SPARSITY_INFO_PRECOND SPARSITY_INFO_PRECOND',
             '#define SPARSITY_PREPROC SPARSITY_PREPROC',
+            '#define SPARSITY_PREPROC_PRECOND SPARSITY_PREPROC_PRECOND',
             '#define VCKHMS VCKHMS',
             '#define VCKPY VCKPY',
             '#define VCKWYR VCKWYR',
@@ -906,7 +908,9 @@ class CPickler(CMill):
             '#endif',
             '#define DWDOT_PRECOND dwdot_precond',
             '#define SPARSITY_INFO sparsity_info',
+            '#define SPARSITY_INFO_PRECOND sparsity_info_precond',
             '#define SPARSITY_PREPROC sparsity_preproc',
+            '#define SPARSITY_PREPROC_PRECOND sparsity_preproc_precond',
             '#define VCKHMS vckhms',
             '#define VCKPY vckpy',
             '#define VCKWYR vckwyr',
@@ -998,7 +1002,9 @@ class CPickler(CMill):
             '#endif',
             '#define DWDOT_PRECOND dwdot_precond_',
             '#define SPARSITY_INFO sparsity_info_',
+            '#define SPARSITY_INFO_PRECOND sparsity_info_precond_ ',
             '#define SPARSITY_PREPROC sparsity_preproc_',
+            '#define SPARSITY_PREPROC_PRECOND sparsity_preproc_precond_',
             '#define VCKHMS vckhms_',
             '#define VCKPY vckpy_',
             '#define VCKWYR vckwyr_',
@@ -1134,8 +1140,10 @@ class CPickler(CMill):
             'void DWDOT_PYJAC(double * restrict J, double * restrict sc, double * restrict Tp, double * restrict Press);',
             '#endif',
             'void DWDOT_PRECOND(double * restrict J, double * restrict sc, double * restrict Tp, int * HP);',
-            'void SPARSITY_INFO(int * nJdata, int * consP);',
-            'void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP);',
+            'void SPARSITY_INFO(int * nJdata, int * consP, int NCELLS);',
+            'void SPARSITY_INFO_PRECOND(int * nJdata, int * consP);',
+            'void SPARSITY_PREPROC(int * rowVals, int * colPtrs, int * consP, int NCELLS);',
+            'void SPARSITY_PREPROC_PRECOND(int * restrict rowVals, int * restrict colPtrs, int * consP);',
             'void aJacobian(double * restrict J, double * restrict sc, double T, int consP);',
             'void aJacobian_precond(double * restrict J, double * restrict sc, double T, int HP);',
             'void dcvpRdT(double * restrict species, double * restrict tc);',
@@ -6926,9 +6934,56 @@ class CPickler(CMill):
         species_list = [x.symbol for x in mechanism.species()]
         nSpecies = len(species_list)
 
+        ####
         self._write()
         self._write(self.line('compute the sparsity pattern Jacobian'))
-        self._write('void SPARSITY_INFO( int * nJdata, int * consP)')
+        self._write('void SPARSITY_INFO( int * nJdata, int * consP, int NCELLS)')
+        self._write('{')
+        self._indent()
+
+        self._write('double c[%d];' % (nSpecies))
+        self._write('double J[%d];' % (nSpecies+1)**2)
+        self._write()
+        self._write('for (int k=0; k<%d; k++) {' % nSpecies)
+        self._indent()
+        self._write('c[k] = 1.0/ %f ;' % (nSpecies))
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('aJacobian(J, c, 1500.0, *consP);')
+
+        self._write()
+        self._write('int nJdata_tmp = 0;')
+        self._write('for (int k=0; k<%d; k++) {' % (nSpecies+1))
+        self._indent()
+        self._write('for (int l=0; l<%d; l++) {' % (nSpecies+1))
+        self._indent()
+        self._write('if(J[57*k + l] != 0.0){')
+        self._indent()
+        self._write('nJdata_tmp = nJdata_tmp + 1;')
+        self._outdent()
+        self._write('}')
+        self._outdent()
+        self._write('}')
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('*nJdata = NCELLS * nJdata_tmp;')
+
+        self._write()
+        self._write('return;')
+        self._outdent()
+
+        self._write('}')
+        self._write()
+        self._write()
+
+        ####
+        self._write()
+        self._write(self.line('compute the sparsity pattern of simplified Jacobian'))
+        self._write('void SPARSITY_INFO_PRECOND( int * nJdata, int * consP)')
         self._write('{')
         self._indent()
 
@@ -6979,8 +7034,9 @@ class CPickler(CMill):
         self._write()
         self._write()
 
-        self._write(self.line('compute the sparsity pattern Jacobian'))
-        self._write('void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP)')
+        ####
+        self._write(self.line('compute the sparsity pattern of the simplified precond Jacobian'))
+        self._write('void SPARSITY_PREPROC_PRECOND(int * restrict rowVals, int * restrict colPtrs, int * consP)')
         self._write('{')
         self._indent()
 
@@ -7021,6 +7077,57 @@ class CPickler(CMill):
         self._outdent()
         self._write('}')
         self._write('colPtrs[k+1] = nJdata_tmp;')
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('return;')
+        self._outdent()
+
+        self._write('}')
+
+        ####
+        self._write(self.line('compute the sparsity pattern of the Jacobian'))
+        self._write('void SPARSITY_PREPROC(int * restrict rowVals, int * restrict colPtrs, int * consP, int NCELLS)')
+        self._write('{')
+        self._indent()
+
+        self._write('double c[%d];' % (nSpecies))
+        self._write('double J[%d];' % (nSpecies+1)**2)
+        self._write('int offset_row;')
+        self._write('int offset_col;')
+        self._write()
+        self._write('for (int k=0; k<%d; k++) {' % nSpecies)
+        self._indent()
+        self._write('c[k] = 1.0/ %f ;' % (nSpecies))
+        self._outdent()
+        self._write('}')
+
+        self._write()
+        self._write('aJacobian(J, c, 1500.0, *consP);')
+
+        self._write()
+        self._write('colPtrs[0] = 0;')
+        self._write('int nJdata_tmp = 0;')
+        self._write('for (int nc=0; nc<NCELLS; nc++) {')
+        self._indent()
+        self._write('offset_row = nc * %d;' % (nSpecies+1))
+        self._write('offset_col = nc * %d;' % (nSpecies+1))
+        self._write('for (int k=0; k<%d; k++) {' % (nSpecies+1))
+        self._indent()
+        self._write('for (int l=0; l<%d; l++) {' % (nSpecies+1))
+        self._indent()
+        self._write('if(J[%d*k + l] != 0.0) {' % (nSpecies+1))
+        self._indent()
+        self._write('rowVals[nJdata_tmp] = l + offset_row; ')
+        self._write('nJdata_tmp = nJdata_tmp + 1; ')
+        self._outdent()
+        self._write('}')
+        self._outdent()
+        self._write('}')
+        self._write('colPtrs[offset_col + (k + 1)] = nJdata_tmp;')
+        self._outdent()
+        self._write('}')
         self._outdent()
         self._write('}')
 
