@@ -24,8 +24,8 @@ contains
     integer :: name(namlen)
     integer(c_int), intent(in) :: cvode_iE_in
 
-    real (kind=dp_t) :: small_temp = 1.d-200
-    real (kind=dp_t) :: small_dens = 1.d-200
+    real (kind=amrex_real) :: small_temp = 1.d-200
+    real (kind=amrex_real) :: small_dens = 1.d-200
 
     iE_quienaqun = cvode_iE_in
 
@@ -117,6 +117,7 @@ contains
     print *,a
     read(49,*) pressure,temp(1),dum, Y_in(1,:)
     eos_state % molefrac(:) = Y_in(1,:)
+    !eos_state % massfrac(:) = Y_in(1,:)
     pressure = pressure*10.d0
     print *, "nspec ?? ", nspec
     print *, "data read from datafromSC.dat ", pressure,temp(1),eos_state % molefrac(:)
@@ -220,8 +221,8 @@ contains
     ! Conversion MKS to CGS for PelePhys
     !! nspec + 1 is energy which here is enthalpy !!
     DO i = 1, nlin
-      Y_forcing_in(i,1:nspec) = Y_forcing_in(i,1:nspec)*1.d-3
-      Y_forcing_in(i,nspec+1) = Y_forcing_in(i,nspec+1)*10.0
+      Y_forcing_in(i,1:nspec) = 0.0d0 !Y_forcing_in(i,1:nspec)*1.d-3
+      Y_forcing_in(i,nspec+1) = 0.0d0 !Y_forcing_in(i,nspec+1)*10.0
     END DO
     plo = pressure 
     CALL flush(6)
