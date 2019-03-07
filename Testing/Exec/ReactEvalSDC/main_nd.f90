@@ -7,11 +7,12 @@ module main_module
 
   real(amrex_real), dimension(:,:), allocatable :: Y_in, Y_forcing_in
   real(amrex_real), dimension(:), allocatable :: temp
-  real(amrex_real)                            :: pressure
+  real(amrex_real) :: pressure
   integer :: nlin, iE_quienaqun
 
 contains
 
+  !--------!
     subroutine extern_init(name,namlen, iE_in) &
                     bind(C, name="extern_init")
 
@@ -25,8 +26,8 @@ contains
     integer :: name(namlen)
     integer(c_int), intent(in) :: iE_in
 
-    real (kind=dp_t) :: small_temp = 1.d-200
-    real (kind=dp_t) :: small_dens = 1.d-200
+    real (kind=amrex_real) :: small_temp = 1.d-200
+    real (kind=amrex_real) :: small_dens = 1.d-200
     integer :: numLobato, numsdcite 
 
     iE_quienaqun = iE_in
@@ -46,8 +47,10 @@ contains
     call reactor_init_sdc(iE_quienaqun, numLobato, numsdcite, 10)
 
   end subroutine extern_init
+  !--------!
 
 
+  !--------!
   subroutine extern_close() bind(C, name="extern_close")
 
     use transport_module
@@ -58,8 +61,10 @@ contains
     call reactor_close_sdc()
 
   end subroutine extern_close
+  !--------!
 
 
+  !--------!
   subroutine get_num_spec(nspec_out) bind(C, name="get_num_spec")
 
     use network, only : nspec
@@ -71,9 +76,95 @@ contains
     nspec_out = nspec
 
   end subroutine get_num_spec
+  !--------!
 
 
-  subroutine read_data_from_txt(name, namlen) &
+  !--------!
+  subroutine initialize_data_byhand( &
+       lo,hi, &
+       rhoY,         rY_lo, rY_hi, &
+       plo) &
+       bind(C, name="initialize_data_byhand")
+
+    use amrex_constants_module, only:  ONE
+    use network, only: nspec
+    use eos_type_module
+    use eos_module
+
+    implicit none
+
+    integer         , intent(in   ) ::     lo(3),    hi(3)
+    integer         , intent(in   ) ::  rY_lo(3), rY_hi(3)
+    real(amrex_real), intent(inout) ::  rhoY(rY_lo(1):rY_hi(1),rY_lo(2):rY_hi(2),rY_lo(3):rY_hi(3),nspec+2)
+    real(amrex_real), intent(inout) ::     plo
+
+    ! local variables
+    integer           :: i, j, k, ii
+    type(eos_t)       :: eos_state
+    real(amrex_real)   :: dum
+    character(len=6)   :: a
+
+    call build(eos_state)
+
+    ! read in the file
+    open (unit=49, file="datafromSC.dat", form='formatted', status='old')
+    ! allocate stuff
+    allocate(Y_in(1,nspec))
+    allocate(temp(1))
+    read(49,*) a
+    print *,a
+    read(49,*) pressure,temp(1),dum, Y_in(1,:)
+    eos_state % molefrac(:) = Y_in(1,:)
+    !eos_state % massfrac(:) = Y_in(1,:)
+    pressure = pressure*10.d0
+    print *, "nspec ?? ", nspec
+    print *, "data read from datafromSC.dat ", pressure,temp(1),eos_state % molefrac(:)
+    print *, "sum mole frac ", sum(eos_state % molefrac(:))
+    print *, "Y_in(1,nspec) ? ", Y_in(1,nspec), eos_state % molefrac(nspec)
+    close (unit=49)
+
+    call eos_xty(eos_state)
+
+    do k = lo(3),hi(3)
+       do j = lo(2),hi(2)
+          do i = lo(1),hi(1)
+
+             eos_state % p               = pressure
+             eos_state % T               = temp(1) 
+             ! CAREFULL need to know N2 idx
+             !eos_state % massfrac(nspec) = ONE - sum(eos_state % massfrac(1:nspec-1))
+
+             call eos_tp(eos_state)
+
+             !rhoY, T
+             rhoY(i,j,k,1:nspec) = eos_state % massfrac * eos_state % rho
+             rhoY(i,j,k,nspec+2) = eos_state % T
+             if (iE_quienaqun == 1) then
+                 ! all in e
+                 rhoY(i,j,k,nspec+1) = eos_state % e
+             else
+                 ! all in h
+                 rhoY(i,j,k,nspec+1) = eos_state % h
+             end if
+
+             plo                 = pressure
+
+          end do
+       end do
+    end do
+    deallocate(Y_in)
+    deallocate(temp)
+
+    call destroy(eos_state)
+
+    !CALL t_readData%stop
+
+  end subroutine initialize_data_byhand
+  !--------!
+
+
+  !--------!
+  subroutine read_data_from_txt(name, namlen, plo) &
           bind(C, name="read_data_from_txt")
 
     use network, only: nspec
@@ -81,6 +172,7 @@ contains
     implicit none
     integer :: namlen
     integer :: name(namlen)
+    real(amrex_real), intent(inout) ::     plo
     ! Local var
     integer            :: i
     integer, parameter :: maxlen = 256
@@ -96,15 +188,13 @@ contains
     do i = 1, namlen
        probin(i:i) = char(name(i))
     end do
-    print *, " "
-    print *, "Initializing from output txt file ",probin(1:namlen)
+    write(6,*) "Initializing from output txt file ",probin(1:namlen)
 
     ! read in the file
     open (unit=49, file=probin(1:namlen), form='formatted', status='old')
     ! Start with number of useful lines
     read(49,*) nlin
-    write(*,*) " ->txt file has ", nlin, " lines"
-    write(*,*) " "
+    write(*,*) "  --> txt file has ", nlin, " lines"
     ! allocate stuff
     allocate(Y_in(nlin,nspec))
     allocate(Y_forcing_in(nlin,nspec+1))
@@ -116,12 +206,11 @@ contains
     ! read useful lines
     DO i = 1, nlin
       read(49,*) y, dum, y_velocity, density, dum, dum, temp(i), dum, dum, dum, dum, Y_in(i,:), dum, dum, dum, dum, dum, dum, Y_forcing_in(i,:)
-      !print *, Y_forcing_in(i,nspec+1)*10.0
+      !read(49,*) y, dum, y_velocity, density, dum, dum, temp(i), dum, dum, dum, dum, Y_in(i,:),  dum, Y_forcing_in(i,:)
+      print *, sum(Y_in(i,:))
     END DO
     ! Todo
     pressure = 1013250.d0
-    !pressure = 15000000.d0
-    print *, sum(Y_in(1,:))
 
     close (unit=49)
 
@@ -131,16 +220,18 @@ contains
       Y_forcing_in(i,1:nspec) = 0.0d0 !Y_forcing_in(i,1:nspec)*1.d-3
       Y_forcing_in(i,nspec+1) = 0.0d0 !Y_forcing_in(i,nspec+1)*10.0
     END DO
+    plo = pressure 
 
     if (Y_forcing_in(i,nspec+1) == 0.0) then
         print *, "NO EXT SOURCE TERM"
     end if
 
     CALL flush(6)
-
   end subroutine read_data_from_txt
+  !--------!
 
 
+  !--------!
   subroutine initialize_data( &
        lo,           hi, &
        rhoY,         rY_lo, rY_hi, &
@@ -167,16 +258,15 @@ contains
 
     ! CGS UNITS
 
-    !print *, "In initialize_data"
-
     do k = lo(3),hi(3)
        do j = lo(2),hi(2)
           do i = lo(1),hi(1)
 
+
              eos_state % p          = pressure
              eos_state % T          = temp(i+1)
              eos_state % massfrac(:)     = Y_in(i+1,:)
-             !eos_state % molefrac(:)     = Y_in(i+1,:)
+             !eos_state % massfrac(nspec) = ONE - sum(Y_in(i+1,1:nspec-1))
 
              !call eos_xty(eos_state)
 
@@ -184,16 +274,20 @@ contains
 
              ! rhoY(:nspec) = rhoY, rhoY(nspec+1) = nrg, rhoY(nspec+2) = T
              rhoY(i,j,k,1:nspec) = eos_state % massfrac * eos_state % rho
-             if (iE_quienaqun == 1) then
-                 rhoY(i,j,k,nspec+1) = eos_state % e 
-             else
-                 rhoY(i,j,k,nspec+1) = eos_state % h 
-             end if
-
              rhoY(i,j,k,nspec+2) = eos_state % T
 
-             ! rhoY_src(:nspec) = rhoForcingSpecs, rhoY_src(nspec+1) = rhoForcingNRG
+             ! rhoY_src(:nspec) = rhoForcingSpecs
              rhoY_src(i,j,k,1:nspec) = Y_forcing_in(i+1,1:nspec)
+
+             if (iE_quienaqun == 1) then
+                 ! all in e
+                 rhoY(i,j,k,nspec+1) = eos_state % e 
+             else
+                 ! all in h
+                 rhoY(i,j,k,nspec+1) = eos_state % h 
+             end if
+             ! all in h
+             !rhoE src ext
              rhoY_src(i,j,k,nspec+1) = Y_forcing_in(i+1,nspec+1)
 
           end do
@@ -204,79 +298,10 @@ contains
     CALL flush(6)
 
   end subroutine initialize_data
+  !--------!
 
 
-  subroutine initialize_data_byhand( &
-       lo,hi, &
-       rhoY,         rY_lo, rY_hi) &
-       bind(C, name="initialize_data_byhand")
-
-    use amrex_constants_module, only: M_PI, HALF, ONE, TWO, ZERO
-    use network, only: nspec
-    use eos_type_module
-    use eos_module
-
-    implicit none
-
-    integer         , intent(in   ) ::     lo(3),    hi(3)
-    integer         , intent(in   ) ::  rY_lo(3), rY_hi(3)
-    real(amrex_real), intent(inout) ::  rhoY(rY_lo(1):rY_hi(1),rY_lo(2):rY_hi(2),rY_lo(3):rY_hi(3),nspec+2)
-
-    ! local variables
-    integer           :: i, j, k, ii
-    type(eos_t)       :: eos_state
-    real(amrex_real)   :: dum
-    character(len=6)   :: a
-
-    !CALL t_eos%start
-    call build(eos_state)
-    !CALL t_eos%stop
-
-    !CALL t_readData%init("Read Data")   
-    !CALL t_readData%start
-
-    ! read in the file
-    open (unit=49, file="datafromSC.dat", form='formatted', status='old')
-    ! allocate stuff
-    allocate(Y_in(1,nspec))
-    allocate(temp(1))
-    read(49,*) a
-    read(49,*) pressure,temp(1),dum,Y_in(1,:)
-    eos_state % molefrac(:) = Y_in(1,:)
-    pressure = pressure*10.d0
-    print *, "sum mole frac ", sum(eos_state % molefrac(:))
-    close (unit=49)
-
-    call eos_xty(eos_state)
-
-    do k = lo(3),hi(3)
-       do j = lo(2),hi(2)
-          do i = lo(1),hi(1)
-
-             eos_state % p               = pressure
-             eos_state % T               = temp(1) 
-
-             call eos_tp(eos_state)
-
-             rhoY(i,j,k,1:nspec) = eos_state % massfrac * eos_state % rho
-             if (iE_quienaqun == 1) then
-                 rhoY(i,j,k,nspec+1) = eos_state % e
-             else
-                 rhoY(i,j,k,nspec+1) = eos_state % h
-             end if
-
-             rhoY(i,j,k,nspec+2) = eos_state % T
-
-          end do
-       end do
-    end do
-
-    call destroy(eos_state)
-
-    !CALL t_readData%stop
-
-  end subroutine initialize_data_byhand
-
+  !--------!
 
   subroutine react_state(lo,hi, &
                          mold,mo_lo,mo_hi, &

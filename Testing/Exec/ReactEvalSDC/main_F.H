@@ -14,15 +14,16 @@ extern "C"
 
     void initialize_data_byhand
     (const int* lo, const int* hi,
-     const BL_FORT_FAB_ARG_3D(massfraction));
+     const BL_FORT_FAB_ARG_3D(massfraction),
+     const Real* plo);
+
+    void read_data_from_txt
+    (const int* name, const int* namlen, const Real* plo);
 
     void initialize_data
     (const int* lo, const int* hi,
      const BL_FORT_FAB_ARG_3D(massfraction),
      const BL_FORT_FAB_ARG_3D(rY_src_ext));
-
-    void read_data_from_txt
-    (const int* name, const int* namlen);
 
     void react_state
     (const int* lo, const int* hi,

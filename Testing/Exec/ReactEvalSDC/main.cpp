@@ -64,7 +64,7 @@ int main (int argc,
       //1 for UV, 2 for HP
       //   1 = Internal energy
       //   anything else = enthalpy (PeleLM restart)
-      //
+      
       pp.get("write_plotfile",write_plotfile);
       pp.get("do_tiling",do_tiling);
 
@@ -97,6 +97,7 @@ int main (int argc,
     Geometry geom;
     IntVect dom_lo(IntVect(D_DECL(0,0,0)));
     IntVect dom_hi(IntVect(D_DECL(n_cell-1, 0, 0)));
+    //IntVect dom_hi(IntVect(D_DECL(n_cell-1, max_grid_size-1, 0)));
     Box domain(dom_lo, dom_hi);
 
     // Initialize the boxarray "ba" from the single box "bx"
@@ -104,7 +105,11 @@ int main (int argc,
 
     // Break up boxarray "ba" into chunks no larger than "max_grid_size"
     // along a direction
-    ba.maxSize(max_grid_size);
+    const IntVect ChunkSize = IntVect::TheUnitVector(); //parent->maxGridSize(level);
+    IntVect chunk(ChunkSize);
+    chunk[0] = 1; //max_grid_size;
+    chunk[1] = 1;//max_grid_size; 
+    ba.maxSize(chunk);
 
     // This defines the physical size of the box.  Right now the box is
     // [-1,1] in each direction.
@@ -163,7 +168,8 @@ int main (int argc,
          for (int i = 0; i < txtfile_in_length; i++)
 	 txtfile_in_name[i] = txtfile_in[i];
 
-	 read_data_from_txt(&(txtfile_in_name[0]),&txtfile_in_length);
+	 printf(" (main) Will read data_from_txt ... \n");
+	 read_data_from_txt(&(txtfile_in_name[0]),&txtfile_in_length,&plo);
 
 #ifdef _OPENMP
 #pragma omp parallel
@@ -186,7 +192,7 @@ int main (int argc,
          {
               amrex::Print() << "INFO: "<< count <<" FabArray in MF ... "<< std::endl;
          }
-    }else {
+    } else {
 
 #ifdef _OPENMP
 #pragma omp parallel
@@ -198,7 +204,8 @@ int main (int argc,
           const Box& box = mfi.tilebox();
 
           initialize_data_byhand(ARLIM_3D(box.loVect()), ARLIM_3D(box.hiVect()),
-            		BL_TO_FORTRAN_N_3D(mf[mfi],0));
+            		BL_TO_FORTRAN_N_3D(mf[mfi],0),
+			&plo);
         }
 
         rY_source_ext.setVal(0,0,Ncomp+1,0);
@@ -216,13 +223,17 @@ int main (int argc,
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
-    // Advance the MF by dt
-    int count;
-    count = 1;
+    /* Advance the MF by dt*ndt */
+    std::ofstream myfile;
+    myfile.open ("fort.txt");
+    myfile.precision(12);
+    int count = 1;
+    int count_box;
     for ( MFIter mfi(mf, do_tiling); mfi.isValid(); ++mfi )
     {
+        amrex::Print() << "\n ... working on mf number " << count << std::endl;
+
         const Box& box = mfi.tilebox();
-        amrex::Print() << "... working on mf number " << count << std::endl;
 
         react_state(ARLIM_3D(box.loVect()), ARLIM_3D(box.hiVect()),
           	    BL_TO_FORTRAN_N_3D(mf[mfi],0),
@@ -240,7 +251,7 @@ int main (int argc,
     // Tell the I/O Processor to write out the "run time"
     amrex::Print() << "Time = " << stop_time - strt_time << std::endl;
 
-    MultiFab::Copy(temperature,mf,Ncomp+1,0,1,0);
+    //MultiFab::Copy(temperature,mf,Ncomp+1,0,1,0);
     // Check results
     if (write_plotfile)
     {
@@ -249,8 +260,7 @@ int main (int argc,
       //PlotFileFromMF(temperature,outfile);
     }
 
-
-    //extern_close();
+    extern_close();
     amrex::Finalize();
-    return 0;
+    return(0);
 }
