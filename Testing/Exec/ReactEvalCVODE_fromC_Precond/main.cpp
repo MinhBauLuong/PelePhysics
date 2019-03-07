@@ -145,7 +145,7 @@ int main (int argc,
     Geometry geom;
     IntVect dom_lo(IntVect(D_DECL(0,0,0)));
     //IntVect dom_hi(IntVect(D_DECL(n_cell-1, 0, 0)));
-    IntVect dom_hi(IntVect(D_DECL(n_cell-1, 31, 0)));
+    IntVect dom_hi(IntVect(D_DECL(n_cell-1, max_grid_size-1, 0)));
     Box domain(dom_lo, dom_hi);
 
     // Initialize the boxarray "ba" from the single box "bx"
@@ -157,7 +157,7 @@ int main (int argc,
     IntVect chunk(ChunkSize);
     chunk[0] = 1; //max_grid_size;
     chunk[1] = max_grid_size; 
-    chunk[2] = 1; 
+    //chunk[2] = 1; 
     ba.maxSize(chunk);
 
     // This defines the physical size of the box.  Right now the box is

@@ -115,11 +115,14 @@ contains
     allocate(temp(1))
     read(49,*) a
     print *,a
-    read(49,*) pressure,temp(1),dum,Y_in(1,:)
+    read(49,*) pressure,temp(1),dum, Y_in(1,:)
     eos_state % molefrac(:) = Y_in(1,:)
     pressure = pressure*10.d0
-    !print *, "data read from datafromSC.dat ", pressure,temp(1),eos_state % molefrac(:)
+    print *, "nspec ?? ", nspec
+    print *, "data read from datafromSC.dat ", pressure,temp(1),eos_state % molefrac(:)
+    !eos_state % molefrac(nspec) = 1 - SUM(eos_state % molefrac(1:nspec-1))
     print *, "sum mole frac ", sum(eos_state % molefrac(:))
+    print *, "Y_in(1,nspec) ? ", Y_in(1,nspec), eos_state % molefrac(nspec)
     close (unit=49)
 
     call eos_xty(eos_state)
@@ -206,6 +209,7 @@ contains
     ! read useful lines
     DO i = 1, nlin
       read(49,*) y, dum, y_velocity, density, dum, dum, temp(i), dum, dum, dum, dum, Y_in(i,:), dum, dum, dum, dum, dum, dum, Y_forcing_in(i,:)
+      !read(49,*) y, dum, y_velocity, density, dum, dum, temp(i), dum, dum, dum, dum, Y_in(i,:),  dum, Y_forcing_in(i,:)
       print *, sum(Y_in(i,:))
     END DO
     ! Todo
@@ -216,8 +220,8 @@ contains
     ! Conversion MKS to CGS for PelePhys
     !! nspec + 1 is energy which here is enthalpy !!
     DO i = 1, nlin
-      Y_forcing_in(i,1:nspec) = 0.0 !Y_forcing_in(i,1:nspec)*1.d-3
-      Y_forcing_in(i,nspec+1) = 0.0 !Y_forcing_in(i,nspec+1)*10.0
+      Y_forcing_in(i,1:nspec) = Y_forcing_in(i,1:nspec)*1.d-3
+      Y_forcing_in(i,nspec+1) = Y_forcing_in(i,nspec+1)*10.0
     END DO
     plo = pressure 
     CALL flush(6)

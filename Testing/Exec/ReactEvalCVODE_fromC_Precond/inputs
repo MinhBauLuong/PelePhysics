@@ -1,6 +1,6 @@
 probin_file = probin
-n_cell = 512
-max_grid_size = 1
+n_cell = 25 
+max_grid_size = 32
 
 dt = 1.e-07
 ndt = 300
@@ -28,4 +28,6 @@ write_plotfile = 1
 do_tiling = 0
 
 amr.plot_file       = plt
-txtfile_in          = 1D_y_7530_DOD
+txtfile_in          = 1D_y_7530_DOD_save
+#txtfile_in          = 1D_y_Nara_save
+#txtfile_in          = 1D_y_5105_drm_save
