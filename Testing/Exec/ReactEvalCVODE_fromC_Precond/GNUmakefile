@@ -55,8 +55,10 @@ endif
 ifeq ($(FUEGO_GAS), TRUE)
   Eos_dir         = Fuego
   #Chemistry_Model = ERC_nheptane
+  #Chemistry_Model = grimech30
   #Chemistry_Model = drm19
   Chemistry_Model = dodecane_wang
+  #Chemistry_Model = Aromatic_KrNara
   Reactions_dir   = Fuego
   Transport_dir   = Simple
 else
