@@ -65,80 +65,80 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
         user_data->neqs_per_cell[0] = NEQ;
         user_data->flagP = iE_Creact; 
 
-        if ((iDense_Creact == 99) && (iJac_Creact == 1)) { 
-            int HP;
-            if (iE_Creact == 1) {
-                HP = 0;
-            } else {
-                HP = 1;
-            }
-            /* Precond data */ 
-            if (iverbose > 0) {
-                printf("Alloc stuff for Precond \n");
-                // Find sparsity pattern to fill structure of sparse matrix
-                sparsity_info_precond_(&(user_data->NNZ),&HP);
-                printf("--> SPARSE Preconditioner -- non zero entries %d represents %f %% fill pattern.\n", user_data->NNZ, user_data->NNZ/float((NEQ+1) * (NEQ+1)) *100.0);
-            }
-            cudaMallocManaged(&(user_data->csr_row_count_d), (NEQ+2) * sizeof(int));
-            cudaMallocManaged(&(user_data->csr_col_index_d), user_data->NNZ * sizeof(int));
-            cudaMallocManaged(&(user_data->csr_jac_d), user_data->NNZ * NCELLS * sizeof(double));
-            cudaMallocManaged(&(user_data->csr_val_d), user_data->NNZ * NCELLS * sizeof(double));
+        //if ((iDense_Creact == 99) && (iJac_Creact == 1)) { 
+        //    int HP;
+        //    if (iE_Creact == 1) {
+        //        HP = 0;
+        //    } else {
+        //        HP = 1;
+        //    }
+        //    /* Precond data */ 
+        //    if (iverbose > 0) {
+        //        printf("Alloc stuff for Precond \n");
+        //        // Find sparsity pattern to fill structure of sparse matrix
+        //        sparsity_info_precond_(&(user_data->NNZ),&HP);
+        //        printf("--> SPARSE Preconditioner -- non zero entries %d represents %f %% fill pattern.\n", user_data->NNZ, user_data->NNZ/float((NEQ+1) * (NEQ+1)) *100.0);
+        //    }
+        //    cudaMallocManaged(&(user_data->csr_row_count_d), (NEQ+2) * sizeof(int));
+        //    cudaMallocManaged(&(user_data->csr_col_index_d), user_data->NNZ * sizeof(int));
+        //    cudaMallocManaged(&(user_data->csr_jac_d), user_data->NNZ * NCELLS * sizeof(double));
+        //    cudaMallocManaged(&(user_data->csr_val_d), user_data->NNZ * NCELLS * sizeof(double));
 
-            sparsity_preproc_precond_(user_data->csr_row_count_d, user_data->csr_col_index_d, &HP);
-            if (iverbose > 2) {
-                for (int i=0; i<NEQ+1; i++) {
-                    printf("\n row %d csr_row_count %d \n", i, user_data->csr_row_count_d[i+1]);
-                }
-            }
+        //    sparsity_preproc_precond_(user_data->csr_row_count_d, user_data->csr_col_index_d, &HP);
+        //    if (iverbose > 2) {
+        //        for (int i=0; i<NEQ+1; i++) {
+        //            printf("\n row %d csr_row_count %d \n", i, user_data->csr_row_count_d[i+1]);
+        //        }
+        //    }
 
-            // Create Sparse batch QR solver
-            // qr info and matrix descriptor
-            cusolver_status = cusolverSpCreate(&cusolverHandle);
-            assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
+        //    // Create Sparse batch QR solver
+        //    // qr info and matrix descriptor
+        //    cusolver_status = cusolverSpCreate(&cusolverHandle);
+        //    assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
 
-            cusparse_status = cusparseCreateMatDescr(&descrA); 
-            assert(cusparse_status == CUSPARSE_STATUS_SUCCESS);
+        //    cusparse_status = cusparseCreateMatDescr(&descrA); 
+        //    assert(cusparse_status == CUSPARSE_STATUS_SUCCESS);
 
-            cusparseSetMatType(descrA, CUSPARSE_MATRIX_TYPE_GENERAL);
-            cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ONE);
+        //    cusparseSetMatType(descrA, CUSPARSE_MATRIX_TYPE_GENERAL);
+        //    cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ONE);
  
-            cusparse_status = cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ONE);
-            assert(cusparse_status == CUSPARSE_STATUS_SUCCESS);
+        //    cusparse_status = cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ONE);
+        //    assert(cusparse_status == CUSPARSE_STATUS_SUCCESS);
 
-            cusolver_status = cusolverSpCreateCsrqrInfo(&info);
-            assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
+        //    cusolver_status = cusolverSpCreateCsrqrInfo(&info);
+        //    assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
 
-            // symbolic analysis
-            cusolver_status = cusolverSpXcsrqrAnalysisBatched(cusolverHandle,
-                                                      NEQ+1, // size per subsystem
-                                                      NEQ+1, // size per subsystem
-                                                      user_data->NNZ,
-                                                      descrA,
-                                                      user_data->csr_row_count_d,
-                                                      user_data->csr_col_index_d,
-                                                      info);
-            assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
+        //    // symbolic analysis
+        //    cusolver_status = cusolverSpXcsrqrAnalysisBatched(cusolverHandle,
+        //                                              NEQ+1, // size per subsystem
+        //                                              NEQ+1, // size per subsystem
+        //                                              user_data->NNZ,
+        //                                              descrA,
+        //                                              user_data->csr_row_count_d,
+        //                                              user_data->csr_col_index_d,
+        //                                              info);
+        //    assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
 
 
-            // allocate working space 
-            cusolver_status = cusolverSpDcsrqrBufferInfoBatched(cusolverHandle,
-                                                      NEQ+1, // size per subsystem
-                                                      NEQ+1, // size per subsystem
-                                                      user_data->NNZ,
-                                                      descrA,
-                                                      user_data->csr_val_d,
-                                                      user_data->csr_row_count_d,
-                                                      user_data->csr_col_index_d,
-                                                      NCELLS,
-                                                      info,
-                                                      &internalDataInBytes,
-                                                      &workspaceInBytes);
-            assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
-            
-            cudaStat1 = cudaMalloc((void**)&buffer_qr, workspaceInBytes);
-            assert(cudaStat1 == cudaSuccess);
+        //    // allocate working space 
+        //    cusolver_status = cusolverSpDcsrqrBufferInfoBatched(cusolverHandle,
+        //                                              NEQ+1, // size per subsystem
+        //                                              NEQ+1, // size per subsystem
+        //                                              user_data->NNZ,
+        //                                              descrA,
+        //                                              user_data->csr_val_d,
+        //                                              user_data->csr_row_count_d,
+        //                                              user_data->csr_col_index_d,
+        //                                              NCELLS,
+        //                                              info,
+        //                                              &internalDataInBytes,
+        //                                              &workspaceInBytes);
+        //    assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
+        //    
+        //    cudaStat1 = cudaMalloc((void**)&buffer_qr, workspaceInBytes);
+        //    assert(cudaStat1 == cudaSuccess);
 
-        }
+        //}
 
 	/* Initialize chemistry onto the device */
         initialize_chemistry_device(user_data);
@@ -218,21 +218,21 @@ int extern_cInit(const int* cvode_meth,const int* cvode_itmeth,
 
 	if (iJac_Creact == 0) {
             printf("\n--> Without Analytical J\n");
-	} else {
-            printf("\n--> With Analytical J\n");
-	    if (iDense_Creact == 99) {
-                if (iverbose > 0) {
-                    printf("\n    (99)\n");
-		}
-	        /* Set the JAcobian-times-vector function */
-	        flag = CVSpilsSetJacTimes(cvode_mem, NULL, NULL);
-	        if(check_flag(&flag, "CVSpilsSetJacTimes", 1)) return(1);
+	//} else {
+        //    printf("\n--> With Analytical J\n");
+	//    if (iDense_Creact == 99) {
+        //        if (iverbose > 0) {
+        //            printf("\n    (99)\n");
+	//	}
+	//        /* Set the JAcobian-times-vector function */
+	//        flag = CVSpilsSetJacTimes(cvode_mem, NULL, NULL);
+	//        if(check_flag(&flag, "CVSpilsSetJacTimes", 1)) return(1);
 
-	        /* Set the preconditioner solve and setup functions */
-	        //flag = CVSpilsSetPreconditioner(cvode_mem, Precond, PSolve);
-	        flag = CVodeSetPreconditioner(cvode_mem, Precond, PSolve);
-	        if(check_flag(&flag, "CVSpilsSetPreconditioner", 1)) return(1);
-            }
+	//        /* Set the preconditioner solve and setup functions */
+	//        //flag = CVSpilsSetPreconditioner(cvode_mem, Precond, PSolve);
+	//        flag = CVodeSetPreconditioner(cvode_mem, Precond, PSolve);
+	//        if(check_flag(&flag, "CVSpilsSetPreconditioner", 1)) return(1);
+        //    }
 	}
 
         /* Set the max number of time steps */ 
@@ -435,118 +435,118 @@ static int cF_RHS(realtype t, N_Vector y_in, N_Vector ydot_in,
 	return(0);
 }
 
-static int Precond(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
-               booleantype *jcurPtr, realtype gamma, void *user_data) {
-
-        // allocate working space 
-        UserData udata = static_cast<CVodeUserData*>(user_data);
-
-        cudaError_t cuda_status = cudaSuccess;
-
-        /* Get Device pointers for Kernel call */
-        realtype *u_d      = N_VGetDeviceArrayPointer_Cuda(u);
-        realtype *udot_d   = N_VGetDeviceArrayPointer_Cuda(fu);
-
-	cudaMemcpy(dt_save, &tn, sizeof(double), cudaMemcpyHostToDevice);
-
-	cudaMemcpy(gamma_d, &gamma, sizeof(double), cudaMemcpyHostToDevice);
-
-        if (jok) {
-	    unsigned block = 32;
-	    unsigned grid = NCELLS/32 + 1;
-	    fKernelComputeAJ<<<grid,block>>>(user_data, u_d, udot_d,gamma_d, udata->csr_val_d);
-            cuda_status = cudaDeviceSynchronize();  
-            assert(cuda_status == cudaSuccess);
-
-            *jcurPtr = SUNFALSE;
-        } else {
-	    unsigned block = 32;
-	    unsigned grid = NCELLS/32 + 1;
-	    fKernelComputeAJ<<<grid,block>>>(user_data, u_d, udot_d,gamma_d, udata->csr_val_d);
-            cuda_status = cudaDeviceSynchronize();  
-            assert(cuda_status == cudaSuccess);
-
-            *jcurPtr = SUNTRUE;
-        }
-
-        cusolver_status = cusolverSpDcsrqrBufferInfoBatched(cusolverHandle,NEQ+1,NEQ+1, 
-                                (udata->NNZ),
-                                descrA,
-                                udata->csr_val_d,
-                                udata->csr_row_count_d,
-                                udata->csr_col_index_d,
-                                NCELLS,
-                                info,
-                                &internalDataInBytes,
-                                &workspaceInBytes);
-
-        assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
-
-	return(0);
-}
-
-static int PSolve(realtype tn, N_Vector u, N_Vector fu, N_Vector r, N_Vector z,
-                  realtype gamma, realtype delta, int lr, void *user_data)
-{
-
-        cudaError_t cuda_status = cudaSuccess;
-
-        UserData udata = static_cast<CVodeUserData*>(user_data);
-
-        /* Get Device pointers for Kernel call */
-        realtype *u_d      = N_VGetDeviceArrayPointer_Cuda(u);
-        realtype *udot_d   = N_VGetDeviceArrayPointer_Cuda(fu);
-
-        realtype *z_d      = N_VGetDeviceArrayPointer_Cuda(z);
-        realtype *r_d      = N_VGetDeviceArrayPointer_Cuda(r);
-
-        cusolver_status = cusolverSpDcsrqrsvBatched(cusolverHandle,NEQ+1,NEQ+1,
-                               (udata->NNZ),
-                               descrA,
-                               udata->csr_val_d,
-                               udata->csr_row_count_d,
-                               udata->csr_col_index_d,
-                               r_d, 
-                               z_d,
-                               NCELLS,
-                               info,
-                               buffer_qr);
-
-
-        /* Checks */
-        N_VCopyFromDevice_Cuda(z);
-        N_VCopyFromDevice_Cuda(r);
-
-        realtype *z_h      = N_VGetHostArrayPointer_Cuda(z);
-        realtype *r_h      = N_VGetHostArrayPointer_Cuda(r);
-
-        if (iverbose > 4) {
-            for(int batchId = 0 ; batchId < NCELLS; batchId++){
-                // measure |bj - Aj*xj|
-                double *csrValAj = (udata->csr_val_d) + batchId * (udata->NNZ);
-                double *xj       = z_h + batchId * (NEQ+1);
-                double *bj       = r_h + batchId * (NEQ+1);
-                // sup| bj - Aj*xj|
-                double sup_res = 0;
-                for(int row = 0 ; row < (NEQ+1) ; row++){
-                    const int start = udata->csr_row_count_d[row] - 1;
-                    const int end = udata->csr_row_count_d[row +1] - 1;
-                    double Ax = 0.0; // Aj(row,:)*xj
-                    for(int colidx = start ; colidx < end ; colidx++){
-                        const int col = udata->csr_col_index_d[colidx] - 1;
-                        const double Areg = csrValAj[colidx];
-                        const double xreg = xj[col];
-                        Ax = Ax + Areg * xreg;
-                    }
-                    double r = bj[row] - Ax;
-                    sup_res = (sup_res > fabs(r))? sup_res : fabs(r);
-                }
-                printf("batchId %d: sup|bj - Aj*xj| = %E \n", batchId, sup_res);
-            }
-        }
-
-        return(0);
-}
+//static int Precond(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
+//               booleantype *jcurPtr, realtype gamma, void *user_data) {
+//
+//        // allocate working space 
+//        UserData udata = static_cast<CVodeUserData*>(user_data);
+//
+//        cudaError_t cuda_status = cudaSuccess;
+//
+//        /* Get Device pointers for Kernel call */
+//        realtype *u_d      = N_VGetDeviceArrayPointer_Cuda(u);
+//        realtype *udot_d   = N_VGetDeviceArrayPointer_Cuda(fu);
+//
+//	cudaMemcpy(dt_save, &tn, sizeof(double), cudaMemcpyHostToDevice);
+//
+//	cudaMemcpy(gamma_d, &gamma, sizeof(double), cudaMemcpyHostToDevice);
+//
+//        if (jok) {
+//	    unsigned block = 32;
+//	    unsigned grid = NCELLS/32 + 1;
+//	    fKernelComputeAJ<<<grid,block>>>(user_data, u_d, udot_d,gamma_d, udata->csr_val_d);
+//            cuda_status = cudaDeviceSynchronize();  
+//            assert(cuda_status == cudaSuccess);
+//
+//            *jcurPtr = SUNFALSE;
+//        } else {
+//	    unsigned block = 32;
+//	    unsigned grid = NCELLS/32 + 1;
+//	    fKernelComputeAJ<<<grid,block>>>(user_data, u_d, udot_d,gamma_d, udata->csr_val_d);
+//            cuda_status = cudaDeviceSynchronize();  
+//            assert(cuda_status == cudaSuccess);
+//
+//            *jcurPtr = SUNTRUE;
+//        }
+//
+//        cusolver_status = cusolverSpDcsrqrBufferInfoBatched(cusolverHandle,NEQ+1,NEQ+1, 
+//                                (udata->NNZ),
+//                                descrA,
+//                                udata->csr_val_d,
+//                                udata->csr_row_count_d,
+//                                udata->csr_col_index_d,
+//                                NCELLS,
+//                                info,
+//                                &internalDataInBytes,
+//                                &workspaceInBytes);
+//
+//        assert(cusolver_status == CUSOLVER_STATUS_SUCCESS);
+//
+//	return(0);
+//}
+//
+//static int PSolve(realtype tn, N_Vector u, N_Vector fu, N_Vector r, N_Vector z,
+//                  realtype gamma, realtype delta, int lr, void *user_data)
+//{
+//
+//        cudaError_t cuda_status = cudaSuccess;
+//
+//        UserData udata = static_cast<CVodeUserData*>(user_data);
+//
+//        /* Get Device pointers for Kernel call */
+//        realtype *u_d      = N_VGetDeviceArrayPointer_Cuda(u);
+//        realtype *udot_d   = N_VGetDeviceArrayPointer_Cuda(fu);
+//
+//        realtype *z_d      = N_VGetDeviceArrayPointer_Cuda(z);
+//        realtype *r_d      = N_VGetDeviceArrayPointer_Cuda(r);
+//
+//        cusolver_status = cusolverSpDcsrqrsvBatched(cusolverHandle,NEQ+1,NEQ+1,
+//                               (udata->NNZ),
+//                               descrA,
+//                               udata->csr_val_d,
+//                               udata->csr_row_count_d,
+//                               udata->csr_col_index_d,
+//                               r_d, 
+//                               z_d,
+//                               NCELLS,
+//                               info,
+//                               buffer_qr);
+//
+//
+//        /* Checks */
+//        N_VCopyFromDevice_Cuda(z);
+//        N_VCopyFromDevice_Cuda(r);
+//
+//        realtype *z_h      = N_VGetHostArrayPointer_Cuda(z);
+//        realtype *r_h      = N_VGetHostArrayPointer_Cuda(r);
+//
+//        if (iverbose > 4) {
+//            for(int batchId = 0 ; batchId < NCELLS; batchId++){
+//                // measure |bj - Aj*xj|
+//                double *csrValAj = (udata->csr_val_d) + batchId * (udata->NNZ);
+//                double *xj       = z_h + batchId * (NEQ+1);
+//                double *bj       = r_h + batchId * (NEQ+1);
+//                // sup| bj - Aj*xj|
+//                double sup_res = 0;
+//                for(int row = 0 ; row < (NEQ+1) ; row++){
+//                    const int start = udata->csr_row_count_d[row] - 1;
+//                    const int end = udata->csr_row_count_d[row +1] - 1;
+//                    double Ax = 0.0; // Aj(row,:)*xj
+//                    for(int colidx = start ; colidx < end ; colidx++){
+//                        const int col = udata->csr_col_index_d[colidx] - 1;
+//                        const double Areg = csrValAj[colidx];
+//                        const double xreg = xj[col];
+//                        Ax = Ax + Areg * xreg;
+//                    }
+//                    double r = bj[row] - Ax;
+//                    sup_res = (sup_res > fabs(r))? sup_res : fabs(r);
+//                }
+//                printf("batchId %d: sup|bj - Aj*xj| = %E \n", batchId, sup_res);
+//            }
+//        }
+//
+//        return(0);
+//}
 
 
 //int fun_csr_jac(realtype t, N_Vector y_in, N_Vector fy_in,  
@@ -623,75 +623,75 @@ static int PSolve(realtype tn, N_Vector u, N_Vector fu, N_Vector r, N_Vector z,
 //
 //}
 
-__global__ void fKernelComputeAJ(void *user_data, realtype *u_d, realtype *udot_d, double * gamma, double * csr_val_arg)
-{
-  UserData udata = static_cast<CVodeUserData*>(user_data);
-
-  int tid = blockDim.x * blockIdx.x + threadIdx.x;
-          
-  if (tid < udata->ncells_d[0]) {
-      /* local tmp vars */
-      realtype activity[56];
-      realtype molecular_weight[56];
-      realtype temp;
-      realtype Jmat[3249];
-
-      /* offsets */
-      int u_offset = tid * (udata->neqs_per_cell[0] + 1); 
-      int jac_offset = tid * udata->NNZ;
-      realtype* u_curr = u_d + u_offset;
-      //realtype* csr_jac_cell = udata->csr_jac_d + jac_offset;
-      //realtype* csr_val_cell = udata->csr_val_d + jac_offset;
-      realtype* csr_jac_cell = udata->csr_jac_d + jac_offset;
-      realtype* csr_val_cell = csr_val_arg + jac_offset;
-
-      /* MW CGS */
-      molecularWeight_d(molecular_weight);
-      /* temp */
-      temp = u_curr[udata->neqs_per_cell[0]];
-      /* Yks, C CGS*/
-      for (int i = 0; i < udata->neqs_per_cell[0]; i++){
-          activity[i] = u_d[i]/(molecular_weight[i]);
-      }
-      /* Fuego calls on device 
-       * NB to be more accurate should use energy to
-       * recompute temp ...      */
-      if (udata->flagP == 1){
-          int consP = 0 ;
-          dwdot_d(Jmat, activity, &temp, &consP, user_data);
-      } else {
-          int consP = 1 ;
-          dwdot_d(Jmat, activity, &temp, &consP, user_data);
-      }
-      /* renorm the DenseMat */
-      for (int i = 0; i < udata->neqs_per_cell[0]; i++){
-	  for (int k = 0; k < udata->neqs_per_cell[0]; k++){
-              Jmat[k*(udata->neqs_per_cell[0]+1)+i] = Jmat[k*(udata->neqs_per_cell[0]+1)+i] * molecular_weight[i] / molecular_weight[k];
-	  }
-	  Jmat[i*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] = Jmat[i*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] / molecular_weight[i]; 
-          Jmat[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+i] = Jmat[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+i] * molecular_weight[i]; 
-      }
-      /* Fill the Sps Mat */
-      int nbVals;
-      for (int i = 1; i < udata->neqs_per_cell[0]+2; i++) {
-          nbVals = udata->csr_row_count_d[i]-udata->csr_row_count_d[i-1];
-          for (int j = 0; j < nbVals; j++) {
-    	      int idx = udata->csr_col_index_d[ udata->csr_row_count_d[i-1] + j - 1 ] - 1;
-              /* Scale by -gamma */
-              /* Add identity matrix */
-    	      if (idx == (i-1)) {
-                  csr_val_cell[ udata->csr_row_count_d[i-1] + j - 1 ] = 1.0 - (*gamma) * Jmat[ idx * (udata->neqs_per_cell[0]+1) + idx ]; 
-                  csr_jac_cell[ udata->csr_row_count_d[i-1] + j - 1 ] = Jmat[ idx * (udata->neqs_per_cell[0]+1) + idx ]; 
-    	      } else {
-                  csr_val_cell[ udata->csr_row_count_d[i-1] + j - 1 ] = - (*gamma) * Jmat[ idx * (udata->neqs_per_cell[0]+1) + i-1 ]; 
-                  csr_jac_cell[ udata->csr_row_count_d[i-1] + j - 1 ] = Jmat[ idx * (udata->neqs_per_cell[0]+1) + i-1 ]; 
-    	      }
-          }
-      }
-
-  }
-
-}
+//__global__ void fKernelComputeAJ(void *user_data, realtype *u_d, realtype *udot_d, double * gamma, double * csr_val_arg)
+//{
+//  UserData udata = static_cast<CVodeUserData*>(user_data);
+//
+//  int tid = blockDim.x * blockIdx.x + threadIdx.x;
+//          
+//  if (tid < udata->ncells_d[0]) {
+//      /* local tmp vars */
+//      realtype activity[56];
+//      realtype molecular_weight[56];
+//      realtype temp;
+//      realtype Jmat[3249];
+//
+//      /* offsets */
+//      int u_offset = tid * (udata->neqs_per_cell[0] + 1); 
+//      int jac_offset = tid * udata->NNZ;
+//      realtype* u_curr = u_d + u_offset;
+//      //realtype* csr_jac_cell = udata->csr_jac_d + jac_offset;
+//      //realtype* csr_val_cell = udata->csr_val_d + jac_offset;
+//      realtype* csr_jac_cell = udata->csr_jac_d + jac_offset;
+//      realtype* csr_val_cell = csr_val_arg + jac_offset;
+//
+//      /* MW CGS */
+//      molecularWeight_d(molecular_weight);
+//      /* temp */
+//      temp = u_curr[udata->neqs_per_cell[0]];
+//      /* Yks, C CGS*/
+//      for (int i = 0; i < udata->neqs_per_cell[0]; i++){
+//          activity[i] = u_d[i]/(molecular_weight[i]);
+//      }
+//      /* Fuego calls on device 
+//       * NB to be more accurate should use energy to
+//       * recompute temp ...      */
+//      if (udata->flagP == 1){
+//          int consP = 0 ;
+//          dwdot_d(Jmat, activity, &temp, &consP, user_data);
+//      } else {
+//          int consP = 1 ;
+//          dwdot_d(Jmat, activity, &temp, &consP, user_data);
+//      }
+//      /* renorm the DenseMat */
+//      for (int i = 0; i < udata->neqs_per_cell[0]; i++){
+//	  for (int k = 0; k < udata->neqs_per_cell[0]; k++){
+//              Jmat[k*(udata->neqs_per_cell[0]+1)+i] = Jmat[k*(udata->neqs_per_cell[0]+1)+i] * molecular_weight[i] / molecular_weight[k];
+//	  }
+//	  Jmat[i*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] = Jmat[i*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] / molecular_weight[i]; 
+//          Jmat[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+i] = Jmat[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+i] * molecular_weight[i]; 
+//      }
+//      /* Fill the Sps Mat */
+//      int nbVals;
+//      for (int i = 1; i < udata->neqs_per_cell[0]+2; i++) {
+//          nbVals = udata->csr_row_count_d[i]-udata->csr_row_count_d[i-1];
+//          for (int j = 0; j < nbVals; j++) {
+//    	      int idx = udata->csr_col_index_d[ udata->csr_row_count_d[i-1] + j - 1 ] - 1;
+//              /* Scale by -gamma */
+//              /* Add identity matrix */
+//    	      if (idx == (i-1)) {
+//                  csr_val_cell[ udata->csr_row_count_d[i-1] + j - 1 ] = 1.0 - (*gamma) * Jmat[ idx * (udata->neqs_per_cell[0]+1) + idx ]; 
+//                  csr_jac_cell[ udata->csr_row_count_d[i-1] + j - 1 ] = Jmat[ idx * (udata->neqs_per_cell[0]+1) + idx ]; 
+//    	      } else {
+//                  csr_val_cell[ udata->csr_row_count_d[i-1] + j - 1 ] = - (*gamma) * Jmat[ idx * (udata->neqs_per_cell[0]+1) + i-1 ]; 
+//                  csr_jac_cell[ udata->csr_row_count_d[i-1] + j - 1 ] = Jmat[ idx * (udata->neqs_per_cell[0]+1) + i-1 ]; 
+//    	      }
+//          }
+//      }
+//
+//  }
+//
+//}
 
 __global__ void fKernelSpec(realtype *dt, void *user_data, 
 		            realtype *yvec_d, realtype *ydot_d,  
@@ -759,64 +759,64 @@ __global__ void fKernelSpec(realtype *dt, void *user_data,
 }
 
 
-__global__ void fKernelJacCSR(realtype t, void *user_data,
-                                          realtype *yvec_d, realtype *ydot_d,
-                                          realtype* csr_jac,
-                                          const int size, const int nnz, 
-                                          const int nbatched)
-{
-
-    UserData udata = static_cast<CVodeUserData*>(user_data);
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (tid < nbatched) {
-        realtype activity[56];
-        realtype molecular_weight[56];
-        realtype temp;
-        realtype Jmat[3249];
-        int lierr;
-
-        int jac_offset = tid * nnz;
-        int y_offset = tid * size;
-
-        realtype* csr_jac_cell = csr_jac + jac_offset;
-        realtype* actual_y = yvec_d + y_offset;
-
-        /* MW CGS */
-        molecularWeight_d(molecular_weight);
-        /* rho */ 
-        //realtype rho = 0.0;
-        //for (int i = 0; i < udata->neqs_per_cell[0]; i++){
-        //    rho = rho + actual_y[i];
-        //}
-        /* temp */
-        temp = actual_y[udata->neqs_per_cell[0]];
-        /* Yks, C CGS*/
-        for (int i = 0; i < udata->neqs_per_cell[0]; i++){
-	    activity[i] = actual_y[i]/(molecular_weight[i]);
-        }
-        /* Fuego calls on device 
-         * NB to be more accurate should use energy to
-         * recompute temp ...      */
-        if (udata->flagP == 1){
-            int consP = 0 ;
-            dwdot_d(Jmat, activity, &temp, &consP, user_data);
-        } else {
-            int consP = 1 ;
-            dwdot_d(Jmat, activity, &temp, &consP, user_data);
-        }
-        /* fill the sunMat */
-        for (int k = 0; k < udata->neqs_per_cell[0]; k++){
-	    for (int i = 0; i < udata->neqs_per_cell[0]; i++){
-                csr_jac_cell[k*(udata->neqs_per_cell[0]+1)+i] = Jmat[i*(udata->neqs_per_cell[0]+1)+k] * molecular_weight[k] / molecular_weight[i];
-	    }
-	    csr_jac_cell[k*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] = Jmat[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+k] * molecular_weight[k]; 
-        }
-        for (int i = 0; i < udata->neqs_per_cell[0]; i++){
-            csr_jac_cell[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+i] = Jmat[i*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] / molecular_weight[i]; 
-        }
-    }
-}
+//__global__ void fKernelJacCSR(realtype t, void *user_data,
+//                                          realtype *yvec_d, realtype *ydot_d,
+//                                          realtype* csr_jac,
+//                                          const int size, const int nnz, 
+//                                          const int nbatched)
+//{
+//
+//    UserData udata = static_cast<CVodeUserData*>(user_data);
+//    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+//
+//    if (tid < nbatched) {
+//        realtype activity[56];
+//        realtype molecular_weight[56];
+//        realtype temp;
+//        realtype Jmat[3249];
+//        int lierr;
+//
+//        int jac_offset = tid * nnz;
+//        int y_offset = tid * size;
+//
+//        realtype* csr_jac_cell = csr_jac + jac_offset;
+//        realtype* actual_y = yvec_d + y_offset;
+//
+//        /* MW CGS */
+//        molecularWeight_d(molecular_weight);
+//        /* rho */ 
+//        //realtype rho = 0.0;
+//        //for (int i = 0; i < udata->neqs_per_cell[0]; i++){
+//        //    rho = rho + actual_y[i];
+//        //}
+//        /* temp */
+//        temp = actual_y[udata->neqs_per_cell[0]];
+//        /* Yks, C CGS*/
+//        for (int i = 0; i < udata->neqs_per_cell[0]; i++){
+//	    activity[i] = actual_y[i]/(molecular_weight[i]);
+//        }
+//        /* Fuego calls on device 
+//         * NB to be more accurate should use energy to
+//         * recompute temp ...      */
+//        if (udata->flagP == 1){
+//            int consP = 0 ;
+//            dwdot_d(Jmat, activity, &temp, &consP, user_data);
+//        } else {
+//            int consP = 1 ;
+//            dwdot_d(Jmat, activity, &temp, &consP, user_data);
+//        }
+//        /* fill the sunMat */
+//        for (int k = 0; k < udata->neqs_per_cell[0]; k++){
+//	    for (int i = 0; i < udata->neqs_per_cell[0]; i++){
+//                csr_jac_cell[k*(udata->neqs_per_cell[0]+1)+i] = Jmat[i*(udata->neqs_per_cell[0]+1)+k] * molecular_weight[k] / molecular_weight[i];
+//	    }
+//	    csr_jac_cell[k*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] = Jmat[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+k] * molecular_weight[k]; 
+//        }
+//        for (int i = 0; i < udata->neqs_per_cell[0]; i++){
+//            csr_jac_cell[udata->neqs_per_cell[0]*(udata->neqs_per_cell[0]+1)+i] = Jmat[i*(udata->neqs_per_cell[0]+1)+udata->neqs_per_cell[0]] / molecular_weight[i]; 
+//        }
+//    }
+//}
 
 
  /* Free and destroy memory */

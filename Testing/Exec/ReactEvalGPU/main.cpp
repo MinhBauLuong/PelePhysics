@@ -144,7 +144,7 @@ int main (int argc,
     BoxArray ba;
     Geometry geom;
     IntVect dom_lo(IntVect(D_DECL(0,0,0)));
-    IntVect dom_hi(IntVect(D_DECL(n_cell-1, 31, 0)));
+    IntVect dom_hi(IntVect(D_DECL(n_cell-1, max_grid_size-1, 0)));
     //IntVect dom_hi(IntVect(D_DECL(n_cell-1, 0, 0)));
     Box domain(dom_lo, dom_hi);
 
@@ -155,9 +155,8 @@ int main (int argc,
     // along a direction
     const IntVect ChunkSize = IntVect::TheUnitVector(); //parent->maxGridSize(level);
     IntVect chunk(ChunkSize);
-    chunk[0] = 2; //max_grid_size;
+    chunk[0] = 1; //max_grid_size;
     chunk[1] = max_grid_size; 
-    chunk[2] = 1; 
     ba.maxSize(chunk);
 
     // This defines the physical size of the box.  Right now the box is
@@ -280,9 +279,9 @@ int main (int argc,
 #pragma omp parallel
 #endif
     /* Advance the MF by dt*ndt */
-    //std::ofstream myfile;
-    //myfile.open ("fort.txt");
-    //myfile.precision(12);
+    std::ofstream myfile;
+    myfile.open ("fort.txt");
+    myfile.precision(12);
     int count = 1;
     int count_box;
     for ( MFIter mfi(mf, do_tiling); mfi.isValid(); ++mfi )
@@ -322,7 +321,7 @@ int main (int argc,
 	time_tmp = time;
 	int reInit = 1;
 	//printf("#TIME TEMPERATURE \n");
-	//myfile << "#TIME TEMPERATURE P Yks \n";
+	myfile << "#TIME TEMPERATURE P Yks \n";
 	for (int i = 0; i < ndt; ++i) {
 		actual_cReact(tmp_vect, tmp_src_vect, 
 				tmp_vect_energy, tmp_src_vect_energy,
@@ -335,11 +334,11 @@ int main (int argc,
                 //printf("--> at time : %2.8e, ",time_tmp);
 		//printf(" out state (T) is %4.4f and Ysrc(OH) is \n", tmp_vect[Ncomp], plo);
 		//printf("%2.8e %4.4f \n", time_tmp, tmp_vect[Ncomp]);
-		//myfile <<  time_tmp << " " << tmp_vect[Ncomp] << " " << plo <<" ";
-		//for (int ij = 0; ij < Ncomp; ++ij) {
-		//	myfile << tmp_vect[ij]<< " ";
-		//}
-		//myfile <<"\n";
+		myfile <<  time_tmp << " " << tmp_vect[Ncomp] << " " << plo <<" ";
+		for (int ij = 0; ij < Ncomp; ++ij) {
+			myfile << tmp_vect[ij]<< " ";
+		}
+		myfile <<"\n";
 	}
         count = count+1;
 
@@ -352,7 +351,7 @@ int main (int argc,
 		count_box = count_box + 1;
 	}
     }
-    //myfile.close();
+    myfile.close();
 
     stop_time = ParallelDescriptor::second();
     ParallelDescriptor::ReduceRealMax(stop_time,IOProc);

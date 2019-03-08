@@ -9,7 +9,7 @@ USE_CUDA   = TRUE
 ifeq ($(USE_CUDA), TRUE)
     USE_CUDA_CVODE = TRUE
     USE_CVODE_CUSOLVER = FALSE
-    COMP           = pgi
+    COMP           = gcc
 else
     USE_CUDA_CVODE = FALSE
     USE_CVODE_CUSOLVER = FALSE
@@ -33,8 +33,9 @@ endif
 
 USE_SUNDIALS_3x4x=TRUE
 #CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/sundials-3.2.1/instdir/lib/ 
+CVODE_LIB_DIR = /home/amfelden/CODES/PeleLM/Source/ChemDriver/cvode-4.0.2/instdir/lib/
 
-USE_KLU = TRUE
+USE_KLU = FALSE
 ifeq ($(USE_KLU), TRUE)
     DEFINES  += -DUSE_KLU
 endif

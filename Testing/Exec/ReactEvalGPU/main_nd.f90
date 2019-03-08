@@ -24,8 +24,8 @@ contains
     integer :: name(namlen)
     integer(c_int), intent(in) :: cvode_iE_in
 
-    real (kind=dp_t) :: small_temp = 1.d-200
-    real (kind=dp_t) :: small_dens = 1.d-200
+    real (kind=amrex_real) :: small_temp = 1.d-200
+    real (kind=amrex_real) :: small_dens = 1.d-200
 
     iE_quienaqun = cvode_iE_in
 
@@ -115,11 +115,14 @@ contains
     allocate(temp(1))
     read(49,*) a
     print *,a
-    read(49,*) pressure,temp(1),dum,Y_in(1,:)
+    read(49,*) pressure,temp(1),dum, Y_in(1,:)
     eos_state % molefrac(:) = Y_in(1,:)
     pressure = pressure*10.d0
-    !print *, "data read from datafromSC.dat ", pressure,temp(1),eos_state % molefrac(:)
+    print *, "nspec ?? ", nspec
+    print *, "data read from datafromSC.dat ", pressure,temp(1),eos_state % molefrac(:)
+    !eos_state % molefrac(nspec) = 1 - SUM(eos_state % molefrac(1:nspec-1))
     print *, "sum mole frac ", sum(eos_state % molefrac(:))
+    print *, "Y_in(1,nspec) ? ", Y_in(1,nspec), eos_state % molefrac(nspec)
     close (unit=49)
 
     call eos_xty(eos_state)
@@ -216,8 +219,8 @@ contains
     ! Conversion MKS to CGS for PelePhys
     !! nspec + 1 is energy which here is enthalpy !!
     DO i = 1, nlin
-      Y_forcing_in(i,1:nspec) = 0.0 !Y_forcing_in(i,1:nspec)*1.d-3
-      Y_forcing_in(i,nspec+1) = 0.0 !Y_forcing_in(i,nspec+1)*10.0
+      Y_forcing_in(i,1:nspec) = 0.0d0 !Y_forcing_in(i,1:nspec)*1.d-3
+      Y_forcing_in(i,nspec+1) = 0.0d0 !Y_forcing_in(i,nspec+1)*10.0
     END DO
     plo = pressure 
     CALL flush(6)
@@ -277,8 +280,14 @@ contains
              rhoY(i,j,k,nspec+1) = eos_state % T
              ! rhoY_src(:nspec) = rhoForcingSpecs
              rhoY_src(i,j,k,1:nspec) = Y_forcing_in(i+1,1:nspec)
+             if (iE_quienaqun == 1) then
+                 ! all in e
+                 rhoE(i,j,k,1) = eos_state % e * eos_state % rho
+             else
+                 ! all in h
+                 rhoE(i,j,k,1) = eos_state % h * eos_state % rho
+             end if
              ! all in h
-             rhoE(i,j,k,1) = eos_state % h * eos_state % rho
              !rhoE src ext
              rhoEs(i,j,k,1) = Y_forcing_in(i+1,nspec+1)
 

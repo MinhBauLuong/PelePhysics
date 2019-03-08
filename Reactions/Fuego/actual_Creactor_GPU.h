@@ -20,10 +20,10 @@
 
 //#include <cusolver/cvode_cusolver_spqr.h>
 
-#include <klu.h>
-#include <sunlinsol/sunlinsol_klu.h>
-#include <sundials/sundials_sparse.h>
-#include <sunmatrix/sunmatrix_sparse.h>
+//#include <klu.h>
+//#include <sunlinsol/sunlinsol_klu.h>
+//#include <sundials/sundials_sparse.h>
+//#include <sunmatrix/sunmatrix_sparse.h>
 
 #include <AMReX_Print.H>
 
@@ -73,11 +73,11 @@ int actual_cReact(realtype *rY_in, realtype *rY_src_in,
 		realtype *P_in, 
 		realtype *dt_react, realtype *time, int *Init);
 
-static int Precond(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
-		booleantype *jcurPtr, realtype gamma, void *user_data);
-
-static int PSolve(realtype tn, N_Vector u, N_Vector fu, N_Vector r, 
-		N_Vector z, realtype gamma, realtype delta, int lr, void *user_data);
+//static int Precond(realtype tn, N_Vector u, N_Vector fu, booleantype jok,
+//		booleantype *jcurPtr, realtype gamma, void *user_data);
+//
+//static int PSolve(realtype tn, N_Vector u, N_Vector fu, N_Vector r, 
+//		N_Vector z, realtype gamma, realtype delta, int lr, void *user_data);
 
 void extern_cFree();
 
@@ -94,8 +94,8 @@ static void PrintFinalStats(void *cvode_mem);
 /* Stuff that comes from Fuego on Host */
 extern "C" {
     void ckindx_(int * iwrk, double * rwrk, int * mm, int * kk, int * ii, int * nfit); 
-    void sparsity_info_precond_( int * njdata, int * consp);
-    void sparsity_preproc_precond_( int * rowVals, int * colPtrs, int * consP);
+    //void sparsity_info_precond_( int * njdata, int * consp);
+    //void sparsity_preproc_precond_( int * rowVals, int * colPtrs, int * consP);
 }
 
 
@@ -108,15 +108,15 @@ __global__ void fKernelSpec(realtype *dt, void *user_data,
 		            double *rhoX_init, double *rhoXsrc_ext, double *rYs);
 
 
-__global__ void fKernelJacCSR(realtype t, void *user_data,
-                                          realtype *yvec_d, realtype *ydot_d,
-                                          realtype* csr_jac, 
-                                          const int size, const int nnz, 
-                                          const int nbatched);
-
-__global__ void fKernelComputeAJ(void *user_data, realtype *u_d, realtype *udot_d, realtype *gamma_d, realtype *csr_val);
-
-__global__ void fKernelFillJB(void *user_data, realtype *gamma);
+//__global__ void fKernelJacCSR(realtype t, void *user_data,
+//                                          realtype *yvec_d, realtype *ydot_d,
+//                                          realtype* csr_jac, 
+//                                          const int size, const int nnz, 
+//                                          const int nbatched);
+//
+//__global__ void fKernelComputeAJ(void *user_data, realtype *u_d, realtype *udot_d, realtype *gamma_d, realtype *csr_val);
+//
+//__global__ void fKernelFillJB(void *user_data, realtype *gamma);
 
 
 /* FROM FUEGO */
