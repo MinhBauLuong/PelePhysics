@@ -1062,92 +1062,92 @@ class CPickler(CMill):
             'void progressRateFR(double *  q_f, double *  q_r, double *  speciesConc, double T);',
             'void CKINIT'+sym+'();',
             'void CKFINALIZE'+sym+'();',
-            'void CKINDX'+sym+'(int * iwrk, double *  rwrk, int * mm, int * kk, int * ii, int * nfit );',
+            'void CKINDX'+sym+'(int * mm, int * kk, int * ii, int * nfit );',
             'void CKXNUM'+sym+'(char * line, int * nexp, int * lout, int * nval, double *  rval, int * kerr, int lenline);',
             'void CKSNUM'+sym+'(char * line, int * nexp, int * lout, char * kray, int * nn, int * knum, int * nval, double *  rval, int * kerr, int lenline, int lenkray);',
             'void CKSYME(int * kname, int * lenkname);',
             'void CKSYMS(int * kname, int * lenkname);',
             #'void CKSYMS'+sym+'(char * cckwrk, int * lout, char * kname, int * kerr, int lencck, int lenkname);',
             'void CKRP'+sym+'(int * ickwrk, double *  rckwrk, double *  ru, double *  ruc, double *  pa);',
-            'void CKPX'+sym+'(double *  rho, double *  T, double *  x, int * iwrk, double *  rwrk, double *  P);',
-            'void CKPY'+sym+'(double *  rho, double *  T, double *  y, int * iwrk, double *  rwrk, double *  P);',
-            'void CKPC'+sym+'(double *  rho, double *  T, double *  c, int * iwrk, double *  rwrk, double *  P);',
-            'void CKRHOX'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  rho);',
-            'void CKRHOY'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  rho);',
-            'void CKRHOC'+sym+'(double *  P, double *  T, double *  c, int * iwrk, double *  rwrk, double *  rho);',
-            'void CKWT'+sym+'(int * iwrk, double *  rwrk, double *  wt);',
-            'void CKAWT'+sym+'(int * iwrk, double *  rwrk, double *  awt);',
-            'void CKMMWY'+sym+'(double *  y, int * iwrk, double *  rwrk, double *  wtm);',
-            'void CKMMWX'+sym+'(double *  x, int * iwrk, double *  rwrk, double *  wtm);',
-            'void CKMMWC'+sym+'(double *  c, int * iwrk, double *  rwrk, double *  wtm);',
-            'void CKYTX'+sym+'(double *  y, int * iwrk, double *  rwrk, double *  x);',
-            'void CKYTCP'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  c);',
-            'void CKYTCR'+sym+'(double *  rho, double *  T, double *  y, int * iwrk, double *  rwrk, double *  c);',
-            'void CKXTY'+sym+'(double *  x, int * iwrk, double *  rwrk, double *  y);',
-            'void CKXTCP'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  c);',
-            'void CKXTCR'+sym+'(double *  rho, double *  T, double *  x, int * iwrk, double *  rwrk, double *  c);',
-            'void CKCTX'+sym+'(double *  c, int * iwrk, double *  rwrk, double *  x);',
-            'void CKCTY'+sym+'(double *  c, int * iwrk, double *  rwrk, double *  y);',
-            'void CKCPOR'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  cpor);',
-            'void CKHORT'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  hort);',
-            'void CKSOR'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  sor);',
+            'void CKPX'+sym+'(double *  rho, double *  T, double *  x, double *  P);',
+            'void CKPY'+sym+'(double *  rho, double *  T, double *  y, double *  P);',
+            'void CKPC'+sym+'(double *  rho, double *  T, double *  c, double *  P);',
+            'void CKRHOX'+sym+'(double *  P, double *  T, double *  x, double *  rho);',
+            'void CKRHOY'+sym+'(double *  P, double *  T, double *  y, double *  rho);',
+            'void CKRHOC'+sym+'(double *  P, double *  T, double *  c, double *  rho);',
+            'void CKWT'+sym+'(double *  wt);',
+            'void CKAWT'+sym+'(double *  awt);',
+            'void CKMMWY'+sym+'(double *  y, double *  wtm);',
+            'void CKMMWX'+sym+'(double *  x, double *  wtm);',
+            'void CKMMWC'+sym+'(double *  c, double *  wtm);',
+            'void CKYTX'+sym+'(double *  y, double *  x);',
+            'void CKYTCP'+sym+'(double *  P, double *  T, double *  y, double *  c);',
+            'void CKYTCR'+sym+'(double *  rho, double *  T, double *  y, double *  c);',
+            'void CKXTY'+sym+'(double *  x, double *  y);',
+            'void CKXTCP'+sym+'(double *  P, double *  T, double *  x, double *  c);',
+            'void CKXTCR'+sym+'(double *  rho, double *  T, double *  x, double *  c);',
+            'void CKCTX'+sym+'(double *  c, double *  x);',
+            'void CKCTY'+sym+'(double *  c, double *  y);',
+            'void CKCPOR'+sym+'(double *  T, double *  cpor);',
+            'void CKHORT'+sym+'(double *  T, double *  hort);',
+            'void CKSOR'+sym+'(double *  T, double *  sor);',
             
-            'void CKCVML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  cvml);',
-            'void CKCPML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  cvml);',
-            'void CKUML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  uml);',
-            'void CKHML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  uml);',
-            'void CKGML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  gml);',
-            'void CKAML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  aml);',
-            'void CKSML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  sml);',
+            'void CKCVML'+sym+'(double *  T, double *  cvml);',
+            'void CKCPML'+sym+'(double *  T, double *  cvml);',
+            'void CKUML'+sym+'(double *  T, double *  uml);',
+            'void CKHML'+sym+'(double *  T, double *  uml);',
+            'void CKGML'+sym+'(double *  T, double *  gml);',
+            'void CKAML'+sym+'(double *  T, double *  aml);',
+            'void CKSML'+sym+'(double *  T, double *  sml);',
             
-            'void CKCVMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  cvms);',
-            'void CKCPMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  cvms);',
-            'void CKUMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  ums);',
-            'void CKHMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  ums);',
-            'void CKGMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  gms);',
-            'void CKAMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  ams);',
-            'void CKSMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  sms);',
+            'void CKCVMS'+sym+'(double *  T, double *  cvms);',
+            'void CKCPMS'+sym+'(double *  T, double *  cvms);',
+            'void CKUMS'+sym+'(double *  T, double *  ums);',
+            'void CKHMS'+sym+'(double *  T, double *  ums);',
+            'void CKGMS'+sym+'(double *  T, double *  gms);',
+            'void CKAMS'+sym+'(double *  T, double *  ams);',
+            'void CKSMS'+sym+'(double *  T, double *  sms);',
             
-            'void CKCPBL'+sym+'(double *  T, double *  x, int * iwrk, double *  rwrk, double *  cpbl);',
-            'void CKCPBS'+sym+'(double *  T, double *  y, int * iwrk, double *  rwrk, double *  cpbs);',
-            'void CKCVBL'+sym+'(double *  T, double *  x, int * iwrk, double *  rwrk, double *  cpbl);',
-            'void CKCVBS'+sym+'(double *  T, double *  y, int * iwrk, double *  rwrk, double *  cpbs);',
+            'void CKCPBL'+sym+'(double *  T, double *  x, double *  cpbl);',
+            'void CKCPBS'+sym+'(double *  T, double *  y, double *  cpbs);',
+            'void CKCVBL'+sym+'(double *  T, double *  x, double *  cpbl);',
+            'void CKCVBS'+sym+'(double *  T, double *  y, double *  cpbs);',
             
-            'void CKHBML'+sym+'(double *  T, double *  x, int * iwrk, double *  rwrk, double *  hbml);',
-            'void CKHBMS'+sym+'(double *  T, double *  y, int * iwrk, double *  rwrk, double *  hbms);',
-            'void CKUBML'+sym+'(double *  T, double *  x, int * iwrk, double *  rwrk, double *  ubml);',
-            'void CKUBMS'+sym+'(double *  T, double *  y, int * iwrk, double *  rwrk, double *  ubms);',
-            'void CKSBML'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  sbml);',
-            'void CKSBMS'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  sbms);',
-            'void CKGBML'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  gbml);',
-            'void CKGBMS'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  gbms);',
-            'void CKABML'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  abml);',
-            'void CKABMS'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  abms);',
+            'void CKHBML'+sym+'(double *  T, double *  x, double *  hbml);',
+            'void CKHBMS'+sym+'(double *  T, double *  y, double *  hbms);',
+            'void CKUBML'+sym+'(double *  T, double *  x, double *  ubml);',
+            'void CKUBMS'+sym+'(double *  T, double *  y, double *  ubms);',
+            'void CKSBML'+sym+'(double *  P, double *  T, double *  x, double *  sbml);',
+            'void CKSBMS'+sym+'(double *  P, double *  T, double *  y, double *  sbms);',
+            'void CKGBML'+sym+'(double *  P, double *  T, double *  x, double *  gbml);',
+            'void CKGBMS'+sym+'(double *  P, double *  T, double *  y, double *  gbms);',
+            'void CKABML'+sym+'(double *  P, double *  T, double *  x, double *  abml);',
+            'void CKABMS'+sym+'(double *  P, double *  T, double *  y, double *  abms);',
 
             
-            'void CKWC'+sym+'(double *  T, double *  C, int * iwrk, double *  rwrk, double *  wdot);',
-            'void CKWYP'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  wdot);',
-            'void CKWXP'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  wdot);',
-            'void CKWYR'+sym+'(double *  rho, double *  T, double *  y, int * iwrk, double *  rwrk, double *  wdot);',
-            'void CKWXR'+sym+'(double *  rho, double *  T, double *  x, int * iwrk, double *  rwrk, double *  wdot);',
+            'void CKWC'+sym+'(double *  T, double *  C, double *  wdot);',
+            'void CKWYP'+sym+'(double *  P, double *  T, double *  y, double *  wdot);',
+            'void CKWXP'+sym+'(double *  P, double *  T, double *  x, double *  wdot);',
+            'void CKWYR'+sym+'(double *  rho, double *  T, double *  y, double *  wdot);',
+            'void CKWXR'+sym+'(double *  rho, double *  T, double *  x, double *  wdot);',
 
             
-            'void CKQC'+sym+'(double *  T, double *  C, int * iwrk, double *  rwrk, double *  qdot);',
-            'void CKKFKR(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  q_f, double *  q_r);',
-            'void CKQYP'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  qdot);',
-            'void CKQXP'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  qdot);',
-            'void CKQYR'+sym+'(double *  rho, double *  T, double *  y, int * iwrk, double *  rwrk, double *  qdot);',
-            'void CKQXR'+sym+'(double *  rho, double *  T, double *  x, int * iwrk, double *  rwrk, double *  qdot);',
+            'void CKQC'+sym+'(double *  T, double *  C, double *  qdot);',
+            'void CKKFKR(double *  P, double *  T, double *  x, double *  q_f, double *  q_r);',
+            'void CKQYP'+sym+'(double *  P, double *  T, double *  y, double *  qdot);',
+            'void CKQXP'+sym+'(double *  P, double *  T, double *  x, double *  qdot);',
+            'void CKQYR'+sym+'(double *  rho, double *  T, double *  y, double *  qdot);',
+            'void CKQXR'+sym+'(double *  rho, double *  T, double *  x, double *  qdot);',
             
-            'void CKNU'+sym+'(int * kdim, int * iwrk, double *  rwrk, int * nuki);',
-            'void CKNCF'+sym+'(int * mdim, int * iwrk, double *  rwrk, int * ncf);',
+            'void CKNU'+sym+'(int * kdim, int * nuki);',
+            'void CKNCF'+sym+'(int * mdim, int * ncf);',
             
-            'void CKABE'+sym+'(int * iwrk, double *  rwrk, double *  a, double *  b, double *  e );',
-            'void CKEQC'+sym+'(double *  T, double *  C , int * iwrk, double *  rwrk, double *  eqcon );',
-            'void CKEQYP'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  eqcon);',
-            'void CKEQXP'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  eqcon);',
-            'void CKEQYR'+sym+'(double *  rho, double *  T, double *  y, int * iwrk, double *  rwrk, double *  eqcon);',
-            'void CKEQXR'+sym+'(double *  rho, double *  T, double *  x, int * iwrk, double *  rwrk, double *  eqcon);',
+            'void CKABE'+sym+'(double *  a, double *  b, double *  e );',
+            'void CKEQC'+sym+'(double *  T, double *  C , double *  eqcon );',
+            'void CKEQYP'+sym+'(double *  P, double *  T, double *  y, double *  eqcon);',
+            'void CKEQXP'+sym+'(double *  P, double *  T, double *  x, double *  eqcon);',
+            'void CKEQYR'+sym+'(double *  rho, double *  T, double *  y, double *  eqcon);',
+            'void CKEQXR'+sym+'(double *  rho, double *  T, double *  x, double *  eqcon);',
             'void DWDOT(double *  J, double *  sc, double *  T, int * consP);',
             '#ifdef USE_PYJAC',
             'void DWDOT_PYJAC(double *  J, double *  sc, double *  Tp, double *  Press);',
@@ -1161,17 +1161,17 @@ class CPickler(CMill):
             'void aJacobian(double *  J, double *  sc, double T, int consP);',
             'void aJacobian_precond(double *  J, double *  sc, double T, int HP);',
             'void dcvpRdT(double *  species, double *  tc);',
-            'void GET_T_GIVEN_EY(double *  e, double *  y, int * iwrk, double *  rwrk, double *  t, int *ierr);',
-            'void GET_T_GIVEN_HY(double *  h, double *  y, int * iwrk, double *  rwrk, double *  t, int *ierr);',
+            'void GET_T_GIVEN_EY(double *  e, double *  y, double *  t, int *ierr);',
+            'void GET_T_GIVEN_HY(double *  h, double *  y, double *  t, int *ierr);',
             'void GET_REACTION_MAP(int *  rmap);',
             self.line('vector version'),
             'void vproductionRate(int npt, double *  wdot, double *  c, double *  T);',
-            'void VCKHMS'+sym+'(int *  np, double *  T, int * iwrk, double *  rwrk, double *  ums);',
-            'void VCKPY'+sym+'(int *  np, double *  rho, double *  T, double *  y, int * iwrk, double *  rwrk, double *  P);',
+            'void VCKHMS'+sym+'(int *  np, double *  T, double *  ums);',
+            'void VCKPY'+sym+'(int *  np, double *  rho, double *  T, double *  y, double *  P);',
             'void VCKWYR'+sym+'(int *  np, double *  rho, double *  T,',
-            '            double *  y, int *  iwrk, double *  rwrk,',
+            '            double *  y,',
             '            double *  wdot);',
-            'void VCKYTX'+sym+'(int *  np, double *  y, int * iwrk, double *  rwrk, double *  x);',
+            'void VCKYTX'+sym+'(int *  np, double *  y, double *  x);',
             'void vcomp_k_f(int npt, double *  k_f_s, double *  tc, double *  invT);',
             'void vcomp_gibbs(int npt, double *  g_RT, double *  tc);',
             'void vcomp_Kc(int npt, double *  Kc_s, double *  g_RT, double *  invT);',
@@ -1706,7 +1706,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('A few mechanism parameters'))
-        self._write('void CKINDX'+sym+'(int * iwrk, double *  rwrk, int * mm, int * kk, int * ii, int * nfit)')
+        self._write('void CKINDX'+sym+'(int * mm, int * kk, int * ii, int * nfit)')
         self._write('{')
         self._indent()
         self._write('*mm = %d;' % len(mechanism.element()))
@@ -1725,7 +1725,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Compute P = rhoRT/W(x)'))
-        self._write('void CKPX'+sym+'(double *  rho, double *  T, double *  x, int * iwrk, double *  rwrk, double *  P)')
+        self._write('void CKPX'+sym+'(double *  rho, double *  T, double *  x, double *  P)')
         self._write('{')
         self._indent()
 
@@ -1786,7 +1786,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Compute P = rhoRT/W(y)'))
-        self._write('void CKPY'+sym+'(double *  rho, double *  T, double *  y, int * iwrk, double *  rwrk, double *  P)')
+        self._write('void CKPY'+sym+'(double *  rho, double *  T, double *  y,  double *  P)')
         self._write('{')
         self._indent()
 
@@ -1853,7 +1853,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Compute P = rhoRT/W(y)'))
-        self._write('void VCKPY'+sym+'(int *  np, double *  rho, double *  T, double *  y, int * iwrk, double *  rwrk, double *  P)')
+        self._write('void VCKPY'+sym+'(int *  np, double *  rho, double *  T, double *  y,  double *  P)')
         self._write('{')
         self._indent()
 
@@ -1898,7 +1898,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Compute P = rhoRT/W(c)'))
-        self._write('void CKPC'+sym+'(double *  rho, double *  T, double *  c, int * iwrk, double *  rwrk, double *  P)')
+        self._write('void CKPC'+sym+'(double *  rho, double *  T, double *  c,  double *  P)')
         
         self._write('{')
         self._indent()
@@ -1938,7 +1938,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Compute rho = PW(x)/RT'))
-        self._write('void CKRHOX'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  rho)')
+        self._write('void CKRHOX'+sym+'(double *  P, double *  T, double *  x,  double *  rho)')
         self._write('{')
         self._indent()
 
@@ -1967,7 +1967,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Compute rho = P*W(y)/RT'))
-        self._write('void CKRHOY'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  rho)')
+        self._write('void CKRHOY'+sym+'(double *  P, double *  T, double *  y,  double *  rho)')
         self._write('{')
         self._indent()
         self._write('double YOW = 0;')
@@ -2036,7 +2036,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Compute rho = P*W(c)/(R*T)'))
-        self._write('void CKRHOC'+sym+'(double *  P, double *  T, double *  c, int * iwrk, double *  rwrk, double *  rho)')
+        self._write('void CKRHOC'+sym+'(double *  P, double *  T, double *  c,  double *  rho)')
         
         self._write('{')
         self._indent()
@@ -2076,7 +2076,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('get molecular weight for all species'))
-        self._write('void CKWT'+sym+'(int * iwrk, double *  rwrk, double *  wt)')
+        self._write('void CKWT'+sym+'( double *  wt)')
         self._write('{')
         self._indent()
 
@@ -2094,7 +2094,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('get atomic weight for all elements'))
-        self._write('void CKAWT'+sym+'(int * iwrk, double *  rwrk, double *  awt)')
+        self._write('void CKAWT'+sym+'( double *  awt)')
         self._write('{')
         self._indent()
 
@@ -2112,7 +2112,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('get specific heat at constant volume as a function '))
         self._write(self.line('of T for all species (molar units)'))
-        self._write('void CKCVML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  cvml)')
+        self._write('void CKCVML'+sym+'(double *  T,  double *  cvml)')
         self._write('{')
         self._indent()
 
@@ -2149,7 +2149,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('get specific heat at constant pressure as a '))
         self._write(self.line('function of T for all species (molar units)'))
-        self._write('void CKCPML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  cpml)')
+        self._write('void CKCPML'+sym+'(double *  T,  double *  cpml)')
         self._write('{')
         self._indent()
 
@@ -2186,7 +2186,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('get internal energy as a function '))
         self._write(self.line('of T for all species (molar units)'))
-        self._write('void CKUML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  uml)')
+        self._write('void CKUML'+sym+'(double *  T,  double *  uml)')
         self._write('{')
         self._indent()
 
@@ -2226,7 +2226,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('get enthalpy as a function '))
         self._write(self.line('of T for all species (molar units)'))
-        self._write('void CKHML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  hml)')
+        self._write('void CKHML'+sym+'(double *  T,  double *  hml)')
         self._write('{')
         self._indent()
 
@@ -2266,7 +2266,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('get standard-state Gibbs energy as a function '))
         self._write(self.line('of T for all species (molar units)'))
-        self._write('void CKGML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  gml)')
+        self._write('void CKGML'+sym+'(double *  T,  double *  gml)')
         self._write('{')
         self._indent()
 
@@ -2306,7 +2306,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('get standard-state Helmholtz free energy as a '))
         self._write(self.line('function of T for all species (molar units)'))
-        self._write('void CKAML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  aml)')
+        self._write('void CKAML'+sym+'(double *  T,  double *  aml)')
         self._write('{')
         self._indent()
 
@@ -2345,7 +2345,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns the standard-state entropies in molar units'))
-        self._write('void CKSML'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  sml)')
+        self._write('void CKSML'+sym+'(double *  T,  double *  sml)')
         self._write('{')
         self._indent()
 
@@ -2381,7 +2381,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns internal energy in mass units (Eq 30.)'))
-        self._write('void CKUMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  ums)')
+        self._write('void CKUMS'+sym+'(double *  T,  double *  ums)')
         self._write('{')
         self._indent()
 
@@ -2462,7 +2462,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns enthalpy in mass units (Eq 27.)'))
-        self._write('void CKHMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  hms)')
+        self._write('void CKHMS'+sym+'(double *  T,  double *  hms)')
         self._write('{')
         self._indent()
 
@@ -2543,7 +2543,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns enthalpy in mass units (Eq 27.)'))
-        self._write('void VCKHMS'+sym+'(int *  np, double *  T, int * iwrk, double *  rwrk, double *  hms)')
+        self._write('void VCKHMS'+sym+'(int *  np, double *  T,  double *  hms)')
         self._write('{')
         self._indent()
 
@@ -2594,7 +2594,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns helmholtz in mass units (Eq 32.)'))
-        self._write('void CKAMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  ams)')
+        self._write('void CKAMS'+sym+'(double *  T,  double *  ams)')
         self._write('{')
         self._indent()
 
@@ -2630,7 +2630,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns gibbs in mass units (Eq 31.)'))
-        self._write('void CKGMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  gms)')
+        self._write('void CKGMS'+sym+'(double *  T,  double *  gms)')
         self._write('{')
         self._indent()
 
@@ -2668,7 +2668,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the specific heats at constant volume'))
         self._write(self.line('in mass units (Eq. 29)'))
-        self._write('void CKCVMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  cvms)')
+        self._write('void CKCVMS'+sym+'(double *  T,  double *  cvms)')
         self._write('{')
         self._indent()
 
@@ -2744,7 +2744,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the specific heats at constant pressure'))
         self._write(self.line('in mass units (Eq. 26)'))
-        self._write('void CKCPMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  cpms)')
+        self._write('void CKCPMS'+sym+'(double *  T,  double *  cpms)')
         self._write('{')
         self._indent()
 
@@ -2821,7 +2821,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns the entropies in mass units (Eq 28.)'))
-        self._write('void CKSMS'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  sms)')
+        self._write('void CKSMS'+sym+'(double *  T,  double *  sms)')
         self._write('{')
         self._indent()
 
@@ -2855,7 +2855,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns the mean specific heat at CP (Eq. 33)'))
-        self._write('void CKCPBL'+sym+'(double *  T, double *  x, int * iwrk, double *  rwrk, double *  cpbl)')
+        self._write('void CKCPBL'+sym+'(double *  T, double *  x,  double *  cpbl)')
         self._write('{')
         self._indent()
 
@@ -2897,7 +2897,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns the mean specific heat at CP (Eq. 34)'))
-        self._write('void CKCPBS'+sym+'(double *  T, double *  y, int * iwrk, double *  rwrk, double *  cpbs)')
+        self._write('void CKCPBS'+sym+'(double *  T, double *  y,  double *  cpbs)')
         self._write('{')
         self._indent()
 
@@ -3004,7 +3004,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns the mean specific heat at CV (Eq. 35)'))
-        self._write('void CKCVBL'+sym+'(double *  T, double *  x, int * iwrk, double *  rwrk, double *  cvbl)')
+        self._write('void CKCVBL'+sym+'(double *  T, double *  x,  double *  cvbl)')
         self._write('{')
         self._indent()
 
@@ -3046,7 +3046,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns the mean specific heat at CV (Eq. 36)'))
-        self._write('void CKCVBS'+sym+'(double *  T, double *  y, int * iwrk, double *  rwrk, double *  cvbs)')
+        self._write('void CKCVBS'+sym+'(double *  T, double *  y,  double *  cvbs)')
         self._write('{')
         self._indent()
 
@@ -3131,7 +3131,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns the mean enthalpy of the mixture in molar units'))
-        self._write('void CKHBML'+sym+'(double *  T, double *  x, int * iwrk, double *  rwrk, double *  hbml)')
+        self._write('void CKHBML'+sym+'(double *  T, double *  x,  double *  hbml)')
         self._write('{')
         self._indent()
 
@@ -3177,7 +3177,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns mean enthalpy of mixture in mass units'))
-        self._write('void CKHBMS'+sym+'(double *  T, double *  y, int * iwrk, double *  rwrk, double *  hbms)')
+        self._write('void CKHBMS'+sym+'(double *  T, double *  y,  double *  hbms)')
         self._write('{')
         self._indent()
 
@@ -3284,7 +3284,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('get mean internal energy in molar units'))
-        self._write('void CKUBML'+sym+'(double *  T, double *  x, int * iwrk, double *  rwrk, double *  ubml)')
+        self._write('void CKUBML'+sym+'(double *  T, double *  x,  double *  ubml)')
         self._write('{')
         self._indent()
 
@@ -3329,7 +3329,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('get mean internal energy in mass units'))
-        self._write('void CKUBMS'+sym+'(double *  T, double *  y, int * iwrk, double *  rwrk, double *  ubms)')
+        self._write('void CKUBMS'+sym+'(double *  T, double *  y,  double *  ubms)')
         self._write('{')
         self._indent()
 
@@ -3428,7 +3428,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('get mixture entropy in molar units'))
-        self._write('void CKSBML'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  sbml)')
+        self._write('void CKSBML'+sym+'(double *  P, double *  T, double *  x,  double *  sbml)')
         self._write('{')
         self._indent()
 
@@ -3475,7 +3475,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('get mixture entropy in mass units'))
-        self._write('void CKSBMS'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  sbms)')
+        self._write('void CKSBMS'+sym+'(double *  P, double *  T, double *  y,  double *  sbms)')
         self._write('{')
         self._indent()
 
@@ -3532,7 +3532,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns mean gibbs free energy in molar units'))
-        self._write('void CKGBML'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  gbml)')
+        self._write('void CKGBML'+sym+'(double *  P, double *  T, double *  x,  double *  gbml)')
         self._write('{')
         self._indent()
 
@@ -3583,7 +3583,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns mixture gibbs free energy in mass units'))
-        self._write('void CKGBMS'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  gbms)')
+        self._write('void CKGBMS'+sym+'(double *  P, double *  T, double *  y,  double *  gbms)')
         self._write('{')
         self._indent()
 
@@ -3646,7 +3646,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns mean helmholtz free energy in molar units'))
-        self._write('void CKABML'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  abml)')
+        self._write('void CKABML'+sym+'(double *  P, double *  T, double *  x,  double *  abml)')
         self._write('{')
         self._indent()
 
@@ -3697,7 +3697,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns mixture helmholtz free energy in mass units'))
-        self._write('void CKABMS'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  abms)')
+        self._write('void CKABMS'+sym+'(double *  P, double *  T, double *  y,  double *  abms)')
         self._write('{')
         self._indent()
 
@@ -3760,7 +3760,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('compute the production rate for each species'))
-        self._write('void CKWC'+sym+'(double *  T, double *  C, int * iwrk, double *  rwrk, double *  wdot)')
+        self._write('void CKWC'+sym+'(double *  T, double *  C,  double *  wdot)')
         self._write('{')
         self._indent()
 
@@ -3848,7 +3848,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the molar production rate of species'))
         self._write(self.line('Given P, T, and mass fractions'))
-        self._write('void CKWYP'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  wdot)')
+        self._write('void CKWYP'+sym+'(double *  P, double *  T, double *  y,  double *  wdot)')
         self._write('{')
         self._indent()
 
@@ -3902,7 +3902,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the molar production rate of species'))
         self._write(self.line('Given P, T, and mole fractions'))
-        self._write('void CKWXP'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  wdot)')
+        self._write('void CKWXP'+sym+'(double *  P, double *  T, double *  x,  double *  wdot)')
         self._write('{')
         self._indent()
 
@@ -3948,7 +3948,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the molar production rate of species'))
         self._write(self.line('Given rho, T, and mass fractions'))
-        self._write('void CKWYR'+sym+'(double *  rho, double *  T, double *  y, int * iwrk, double *  rwrk, double *  wdot)')
+        self._write('void CKWYR'+sym+'(double *  rho, double *  T, double *  y,  double *  wdot)')
         self._write('{')
         self._indent()
 
@@ -3989,7 +3989,7 @@ class CPickler(CMill):
         self._write(self.line('Returns the molar production rate of species'))
         self._write(self.line('Given rho, T, and mass fractions'))
         self._write('void VCKWYR'+sym+'(int *  np, double *  rho, double *  T,')
-        self._write('	    double *  y, int *  iwrk, double *  rwrk,')
+        self._write('	    double *  y,')
         self._write('	    double *  wdot)')
         self._write('{')
         self._indent()
@@ -4034,7 +4034,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the molar production rate of species'))
         self._write(self.line('Given rho, T, and mole fractions'))
-        self._write('void CKWXR'+sym+'(double *  rho, double *  T, double *  x, int * iwrk, double *  rwrk, double *  wdot)')
+        self._write('void CKWXR'+sym+'(double *  rho, double *  T, double *  x,  double *  wdot)')
         self._write('{')
         self._indent()
 
@@ -4092,7 +4092,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the stoichiometric coefficients'))
         self._write(self.line('of the reaction mechanism. (Eq 50)'))
-        self._write('void CKNU'+sym+'(int * kdim, int * iwrk, double *  rwrk, int * nuki)')
+        self._write('void CKNU'+sym+'(int * kdim,  int * nuki)')
         self._write('{')
         self._indent()
 
@@ -4137,7 +4137,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the elemental composition '))
         self._write(self.line('of the speciesi (mdim is num of elements)'))
-        self._write('void CKNCF'+sym+'(int * mdim, int * iwrk, double *  rwrk, int * ncf)')
+        self._write('void CKNCF'+sym+'(int * mdim,  int * ncf)')
         self._write('{')
         self._indent()
 
@@ -4177,7 +4177,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the arrehenius coefficients '))
         self._write(self.line('for all reactions'))
-        self._write('void CKABE'+sym+'(int * iwrk, double *  rwrk, double *  a, double *  b, double *  e)')
+        self._write('void CKABE'+sym+'( double *  a, double *  b, double *  e)')
         self._write('{')
         self._indent()
 
@@ -4203,7 +4203,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('given y[species]: mass fractions'))
         self._write(self.line('returns mean molecular weight (gm/mole)'))
-        self._write('void CKMMWY'+sym+'(double *  y, int * iwrk, double *  rwrk, double *  wtm)')
+        self._write('void CKMMWY'+sym+'(double *  y,  double *  wtm)')
         self._write('{')
         self._indent()
         species = self.species
@@ -4235,7 +4235,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('given x[species]: mole fractions'))
         self._write(self.line('returns mean molecular weight (gm/mole)'))
-        self._write('void CKMMWX'+sym+'(double *  x, int * iwrk, double *  rwrk, double *  wtm)')
+        self._write('void CKMMWX'+sym+'(double *  x,  double *  wtm)')
         self._write('{')
         self._indent()
 
@@ -4261,7 +4261,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('given c[species]: molar concentration'))
         self._write(self.line('returns mean molecular weight (gm/mole)'))
-        self._write('void CKMMWC'+sym+'(double *  c, int * iwrk, double *  rwrk, double *  wtm)')
+        self._write('void CKMMWC'+sym+'(double *  c,  double *  wtm)')
         self._write('{')
         self._indent()
 
@@ -4298,7 +4298,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'convert y[species] (mass fracs) to x[species] (mole fracs)'))
-        self._write('void CKYTX'+sym+'(double *  y, int * iwrk, double *  rwrk, double *  x)')
+        self._write('void CKYTX'+sym+'(double *  y,  double *  x)')
         self._write('{')
         self._indent()
 
@@ -4338,7 +4338,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'convert y[npoints*species] (mass fracs) to x[npoints*species] (mole fracs)'))
-        self._write('void VCKYTX'+sym+'(int *  np, double *  y, int * iwrk, double *  rwrk, double *  x)')
+        self._write('void VCKYTX'+sym+'(int *  np, double *  y,  double *  x)')
         self._write('{')
         self._indent()
 
@@ -4390,7 +4390,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'convert y[species] (mass fracs) to c[species] (molar conc)'))
-        self._write('void CKYTCP'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  c)')
+        self._write('void CKYTCP'+sym+'(double *  P, double *  T, double *  y,  double *  c)')
         self._write('{')
         self._indent()
 
@@ -4436,7 +4436,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'convert y[species] (mass fracs) to c[species] (molar conc)'))
-        self._write('void CKYTCR'+sym+'(double *  rho, double *  T, double *  y, int * iwrk, double *  rwrk, double *  c)')
+        self._write('void CKYTCR'+sym+'(double *  rho, double *  T, double *  y,  double *  c)')
         self._write('{')
         self._indent()
         species = self.species
@@ -4486,7 +4486,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'convert x[species] (mole fracs) to y[species] (mass fracs)'))
-        self._write('void CKXTY'+sym+'(double *  x, int * iwrk, double *  rwrk, double *  y)')
+        self._write('void CKXTY'+sym+'(double *  x,  double *  y)')
         self._write('{')
         self._indent()
 
@@ -4518,7 +4518,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'convert x[species] (mole fracs) to c[species] (molar conc)'))
-        self._write('void CKXTCP'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  c)')
+        self._write('void CKXTCP'+sym+'(double *  P, double *  T, double *  x,  double *  c)')
         self._write('{')
         self._indent()
 
@@ -4547,7 +4547,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'convert x[species] (mole fracs) to c[species] (molar conc)'))
-        self._write('void CKXTCR'+sym+'(double *  rho, double *  T, double *  x, int * iwrk, double *  rwrk, double *  c)')
+        self._write('void CKXTCR'+sym+'(double *  rho, double *  T, double *  x, double *  c)')
         self._write('{')
         self._indent()
 
@@ -4584,7 +4584,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'convert c[species] (molar conc) to x[species] (mole fracs)'))
-        self._write('void CKCTX'+sym+'(double *  c, int * iwrk, double *  rwrk, double *  x)')
+        self._write('void CKCTX'+sym+'(double *  c, double *  x)')
         self._write('{')
         self._indent()
 
@@ -4622,7 +4622,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'convert c[species] (molar conc) to y[species] (mass fracs)'))
-        self._write('void CKCTY'+sym+'(double *  c, int * iwrk, double *  rwrk, double *  y)')
+        self._write('void CKCTY'+sym+'(double *  c, double *  y)')
         self._write('{')
         self._indent()
 
@@ -4654,7 +4654,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('get Cp/R as a function of T '))
         self._write(self.line('for all species (Eq 19)'))
-        self._write('void CKCPOR'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  cpor)')
+        self._write('void CKCPOR'+sym+'(double *  T, double *  cpor)')
         self._write('{')
         self._indent()
 
@@ -4680,7 +4680,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('get H/RT as a function of T '))
         self._write(self.line('for all species (Eq 20)'))
-        self._write('void CKHORT'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  hort)')
+        self._write('void CKHORT'+sym+'(double *  T, double *  hort)')
         self._write('{')
         self._indent()
 
@@ -4706,7 +4706,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('get S/R as a function of T '))
         self._write(self.line('for all species (Eq 21)'))
-        self._write('void CKSOR'+sym+'(double *  T, int * iwrk, double *  rwrk, double *  sor)')
+        self._write('void CKSOR'+sym+'(double *  T, double *  sor)')
         self._write('{')
         self._indent()
 
@@ -4736,7 +4736,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns the rate of progress for each reaction'))
-        self._write('void CKQC'+sym+'(double *  T, double *  C, int * iwrk, double *  rwrk, double *  qdot)')
+        self._write('void CKQC'+sym+'(double *  T, double *  C, double *  qdot)')
         self._write('{')
         self._indent()
 
@@ -4789,7 +4789,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the progress rates of each reactions'))
         self._write(self.line('Given P, T, and mole fractions'))
-        self._write('void CKKFKR'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  q_f, double *  q_r)')
+        self._write('void CKKFKR'+sym+'(double *  P, double *  T, double *  x, double *  q_f, double *  q_r)')
         self._write('{')
         self._indent()
 
@@ -4840,7 +4840,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the progress rates of each reactions'))
         self._write(self.line('Given P, T, and mass fractions'))
-        self._write('void CKQYP'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  qdot)')
+        self._write('void CKQYP'+sym+'(double *  P, double *  T, double *  y, double *  qdot)')
         self._write('{')
         self._indent()
 
@@ -4898,7 +4898,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the progress rates of each reactions'))
         self._write(self.line('Given P, T, and mole fractions'))
-        self._write('void CKQXP'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  qdot)')
+        self._write('void CKQXP'+sym+'(double *  P, double *  T, double *  x, double *  qdot)')
         self._write('{')
         self._indent()
 
@@ -4948,7 +4948,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the progress rates of each reactions'))
         self._write(self.line('Given rho, T, and mass fractions'))
-        self._write('void CKQYR'+sym+'(double *  rho, double *  T, double *  y, int * iwrk, double *  rwrk, double *  qdot)')
+        self._write('void CKQYR'+sym+'(double *  rho, double *  T, double *  y, double *  qdot)')
         self._write('{')
         self._indent()
 
@@ -4992,7 +4992,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the progress rates of each reactions'))
         self._write(self.line('Given rho, T, and mole fractions'))
-        self._write('void CKQXR'+sym+'(double *  rho, double *  T, double *  x, int * iwrk, double *  rwrk, double *  qdot)')
+        self._write('void CKQXR'+sym+'(double *  rho, double *  T, double *  x, double *  qdot)')
         self._write('{')
         self._indent()
 
@@ -5090,7 +5090,7 @@ class CPickler(CMill):
         self._write()
         self._write()
         self._write(self.line('Returns the equil constants for each reaction'))
-        self._write('void CKEQC'+sym+'(double *  T, double *  C, int * iwrk, double *  rwrk, double *  eqcon)')
+        self._write('void CKEQC'+sym+'(double *  T, double *  C, double *  eqcon)')
         self._write('{')
         self._indent()
 
@@ -5112,7 +5112,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the equil constants for each reaction'))
         self._write(self.line('Given P, T, and mass fractions'))
-        self._write('void CKEQYP'+sym+'(double *  P, double *  T, double *  y, int * iwrk, double *  rwrk, double *  eqcon)')
+        self._write('void CKEQYP'+sym+'(double *  P, double *  T, double *  y, double *  eqcon)')
         self._write('{')
         self._indent()
 
@@ -5134,7 +5134,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the equil constants for each reaction'))
         self._write(self.line('Given P, T, and mole fractions'))
-        self._write('void CKEQXP'+sym+'(double *  P, double *  T, double *  x, int * iwrk, double *  rwrk, double *  eqcon)')
+        self._write('void CKEQXP'+sym+'(double *  P, double *  T, double *  x, double *  eqcon)')
         self._write('{')
         self._indent()
 
@@ -5156,7 +5156,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the equil constants for each reaction'))
         self._write(self.line('Given rho, T, and mass fractions'))
-        self._write('void CKEQYR'+sym+'(double *  rho, double *  T, double *  y, int * iwrk, double *  rwrk, double *  eqcon)')
+        self._write('void CKEQYR'+sym+'(double *  rho, double *  T, double *  y, double *  eqcon)')
         self._write('{')
         self._indent()
 
@@ -5178,7 +5178,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line('Returns the equil constants for each reaction'))
         self._write(self.line('Given rho, T, and mole fractions'))
-        self._write('void CKEQXR'+sym+'(double *  rho, double *  T, double *  x, int * iwrk, double *  rwrk, double *  eqcon)')
+        self._write('void CKEQXR'+sym+'(double *  rho, double *  T, double *  x, double *  eqcon)')
         self._write('{')
         self._indent()
 
@@ -5202,7 +5202,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'get temperature given internal energy in mass units and mass fracs'))
-        self._write('int feeytt'+fsym+'(double *  e, double *  y, int * iwrk, double *  rwrk, double *  t)')
+        self._write('int feeytt'+fsym+'(double *  e, double *  y, double *  t)')
         self._write('{')
         self._indent()
 
@@ -5213,12 +5213,12 @@ class CPickler(CMill):
         self._write('double tmax = %g; // min upper bound for thermo def' % highT)
         self._write('double e1,emin,emax,cv,t1,dt;')
         self._write('int i; // loop counter')
-        self._write('CKUBMS'+sym+'(&tmin, y, iwrk, rwrk, &emin);')
-        self._write('CKUBMS'+sym+'(&tmax, y, iwrk, rwrk, &emax);')
+        self._write('CKUBMS'+sym+'(&tmin, y, &emin);')
+        self._write('CKUBMS'+sym+'(&tmax, y, &emax);')
         self._write('if (ein < emin) {')
         self._indent()
         self._write(self.line('Linear Extrapolation below tmin'))
-        self._write('CKCVBS'+sym+'(&tmin, y, iwrk, rwrk, &cv);')
+        self._write('CKCVBS'+sym+'(&tmin, y, &cv);')
         self._write('*t = tmin - (emin-ein)/cv;')
         self._write('return 1;')
         self._outdent()
@@ -5227,7 +5227,7 @@ class CPickler(CMill):
         self._write('if (ein > emax) {')
         self._indent()
         self._write(self.line('Linear Extrapolation above tmax'))
-        self._write('CKCVBS'+sym+'(&tmax, y, iwrk, rwrk, &cv);')
+        self._write('CKCVBS'+sym+'(&tmax, y, &cv);')
         self._write('*t = tmax - (emax-ein)/cv;')
         self._write('return 1;')
         self._outdent()
@@ -5236,8 +5236,8 @@ class CPickler(CMill):
         self._write('t1 = tmin + (tmax-tmin)/(emax-emin)*(ein-emin);')
         self._write('for (i = 0; i < maxiter; ++i) {')
         self._indent()
-        self._write('CKUBMS'+sym+'(&t1,y,iwrk,rwrk,&e1);')
-        self._write('CKCVBS'+sym+'(&t1,y,iwrk,rwrk,&cv);')
+        self._write('CKUBMS'+sym+'(&t1,y,&e1);')
+        self._write('CKCVBS'+sym+'(&t1,y,&cv);')
         self._write('dt = (ein - e1) / cv;')
         self._write('if (dt > 100) { dt = 100; }')
         self._write('else if (dt < -100) { dt = -100; }')
@@ -5265,7 +5265,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'get temperature given enthalpy in mass units and mass fracs'))
-        self._write('int fehytt'+fsym+'(double *  h, double *  y, int * iwrk, double *  rwrk, double *  t)')
+        self._write('int fehytt'+fsym+'(double *  h, double *  y, double *  t)')
         self._write('{')
         self._indent()
 
@@ -5276,12 +5276,12 @@ class CPickler(CMill):
         self._write('double tmax = %g; // min upper bound for thermo def' % highT)
         self._write('double h1,hmin,hmax,cp,t1,dt;')
         self._write('int i; // loop counter')
-        self._write('CKHBMS'+sym+'(&tmin, y, iwrk, rwrk, &hmin);')
-        self._write('CKHBMS'+sym+'(&tmax, y, iwrk, rwrk, &hmax);')
+        self._write('CKHBMS'+sym+'(&tmin, y, &hmin);')
+        self._write('CKHBMS'+sym+'(&tmax, y, &hmax);')
         self._write('if (hin < hmin) {')
         self._indent()
         self._write(self.line('Linear Extrapolation below tmin'))
-        self._write('CKCPBS'+sym+'(&tmin, y, iwrk, rwrk, &cp);')
+        self._write('CKCPBS'+sym+'(&tmin, y, &cp);')
         self._write('*t = tmin - (hmin-hin)/cp;')
         self._write('return 1;')
         self._outdent()
@@ -5290,7 +5290,7 @@ class CPickler(CMill):
         self._write('if (hin > hmax) {')
         self._indent()
         self._write(self.line('Linear Extrapolation above tmax'))
-        self._write('CKCPBS'+sym+'(&tmax, y, iwrk, rwrk, &cp);')
+        self._write('CKCPBS'+sym+'(&tmax, y, &cp);')
         self._write('*t = tmax - (hmax-hin)/cp;')
         self._write('return 1;')
         self._outdent()
@@ -5299,8 +5299,8 @@ class CPickler(CMill):
         self._write('t1 = tmin + (tmax-tmin)/(hmax-hmin)*(hin-hmin);')
         self._write('for (i = 0; i < maxiter; ++i) {')
         self._indent()
-        self._write('CKHBMS'+sym+'(&t1,y,iwrk,rwrk,&h1);')
-        self._write('CKCPBS'+sym+'(&t1,y,iwrk,rwrk,&cp);')
+        self._write('CKHBMS'+sym+'(&t1,y,&h1);')
+        self._write('CKCPBS'+sym+'(&t1,y,&cp);')
         self._write('dt = (hin - h1) / cp;')
         self._write('if (dt > 100) { dt = 100; }')
         self._write('else if (dt < -100) { dt = -100; }')
@@ -5324,7 +5324,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'convert phi[species] (specific mole nums) to y[species] (mass fracs)'))
-        self._write('void fephity'+fsym+'(double *  phi, int * iwrk, double *  rwrk, double *  y)')
+        self._write('void fephity'+fsym+'(double *  phi, double *  y)')
         self._write('{')
         self._indent()
 
@@ -5358,7 +5358,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'convert y[species] (mass fracs) to phi[species] (specific mole num)'))
-        self._write('void feytphi'+fsym+'(double *  y, int * iwrk, double *  rwrk, double *  phi)')
+        self._write('void feytphi'+fsym+'(double *  y, double *  phi)')
         self._write('{')
         self._indent()
 
@@ -5381,7 +5381,7 @@ class CPickler(CMill):
         self._write()
         self._write(self.line(
             'reverse of ytcr, useful for rate computations'))
-        self._write('void fectyr'+fsym+'(double *  c, double *  rho, int * iwrk, double *  rwrk, double *  y)')
+        self._write('void fectyr'+fsym+'(double *  c, double *  rho, double *  y)')
         self._write('{')
         self._indent()
 
@@ -5399,6 +5399,7 @@ class CPickler(CMill):
         return 
  
  
+    # CAREFULL : need to remove rwrk dependencies before using this one
     def _ck_cvrhs(self, mechanism):
         self._write()
         self._write()
@@ -5408,7 +5409,7 @@ class CPickler(CMill):
             'rwrk[0] and rwrk[1] should contain rho and ene respectively'))
         self._write(self.line(
             'working variable phi contains specific mole numbers'))
-        self._write('void fecvrhs'+fsym+'(double *  time, double *  phi, double *  phidot, double *  rwrk, int * iwrk)')
+        self._write('void fecvrhs'+fsym+'(double *  time, double *  phi, double *  phidot)')
 
 	self._write('{')
 	self._indent()
@@ -5420,10 +5421,10 @@ class CPickler(CMill):
         self._write('double temperature,pressure; ' + self.line('temporary var'))
         self._write('rho = rwrk[0];')
         self._write('ene = rwrk[1];')
-        self._write('fephity'+fsym+'(phi, iwrk, rwrk, y);')
-        self._write('feeytt'+fsym+'(&ene, y, iwrk, rwrk, &temperature);')
-        self._write('CKPY'+sym+'(&rho, &temperature,  y, iwrk, rwrk, &pressure);')
-        self._write('CKWYP'+sym+'(&pressure, &temperature,  y, iwrk, rwrk, wdot);')
+        self._write('fephity'+fsym+'(phi, y);')
+        self._write('feeytt'+fsym+'(&ene, y, &temperature);')
+        self._write('CKPY'+sym+'(&rho, &temperature,  y, &pressure);')
+        self._write('CKWYP'+sym+'(&pressure, &temperature,  y, wdot);')
         self._write('for (i=0; i<%s; ++i) phidot[i] = wdot[i] / (rho/1000.0); ' % self.nSpecies)
         self._write()
         self._write('return;')
@@ -5450,6 +5451,7 @@ class CPickler(CMill):
 	return
 
  
+    # CAREFULL : need to remove rwrk dependencies before using this one
     def _ck_zndrhs(self, mechanism):
         self._write()
         self._write()
@@ -5459,7 +5461,7 @@ class CPickler(CMill):
         self._write(self.line( 'rwrk[1] : preshock density (g/cc) '))
         self._write(self.line( 'rwrk[2] : detonation velocity (cm/s) '))
         self._write(self.line( 'solution vector: [P; rho; y0 ... ylast] '))
-        self._write('void fezndrhs'+fsym+'(double *  time, double *  z, double *  zdot, double *  rwrk, int * iwrk)')
+        self._write('void fezndrhs'+fsym+'(double *  time, double *  z, double *  zdot)')
 
 	self._write('{')
 	self._indent()
@@ -11758,7 +11760,7 @@ class CPickler(CMill):
 
     def _T_given_ey(self, mechanism):
         self._write(self.line(' get temperature given internal energy in mass units and mass fracs'))
-        self._write('void GET_T_GIVEN_EY(double *  e, double *  y, int * iwrk, double *  rwrk, double *  t, int * ierr)')
+        self._write('void GET_T_GIVEN_EY(double *  e, double *  y, double *  t, int * ierr)')
         self._write('{')
         self._write('#ifdef CONVERGENCE')
         self._indent()
@@ -11777,12 +11779,12 @@ class CPickler(CMill):
         self._write('double tmax = 4000;'+self.line('min upper bound for thermo def'))
         self._write('double e1,emin,emax,cv,t1,dt;')
         self._write('int i;'+self.line(' loop counter'))
-        self._write('CKUBMS(&tmin, y, iwrk, rwrk, &emin);')
-        self._write('CKUBMS(&tmax, y, iwrk, rwrk, &emax);')
+        self._write('CKUBMS(&tmin, y, &emin);')
+        self._write('CKUBMS(&tmax, y, &emax);')
         self._write('if (ein < emin) {')
         self._indent()
         self._write(self.line('Linear Extrapolation below tmin'))
-        self._write('CKCVBS(&tmin, y, iwrk, rwrk, &cv);')
+        self._write('CKCVBS(&tmin, y, &cv);')
         self._write('*t = tmin - (emin-ein)/cv;')
         self._write('*ierr = 1;')
         self._write('return;')
@@ -11791,7 +11793,7 @@ class CPickler(CMill):
         self._write('if (ein > emax) {')
         self._indent()
         self._write(self.line('Linear Extrapolation above tmax'))
-        self._write('CKCVBS(&tmax, y, iwrk, rwrk, &cv);')
+        self._write('CKCVBS(&tmax, y, &cv);')
         self._write('*t = tmax - (emax-ein)/cv;')
         self._write('*ierr = 1;')
         self._write('return;')
@@ -11805,8 +11807,8 @@ class CPickler(CMill):
         self._write('}')
         self._write('for (i = 0; i < maxiter; ++i) {')
         self._indent()
-        self._write('CKUBMS(&t1,y,iwrk,rwrk,&e1);')
-        self._write('CKCVBS(&t1,y,iwrk,rwrk,&cv);')
+        self._write('CKUBMS(&t1,y,&e1);')
+        self._write('CKCVBS(&t1,y,&cv);')
         self._write('dt = (ein - e1) / cv;')
         self._write('if (dt > 100.) { dt = 100.; }')
         self._write('else if (dt < -100.) { dt = -100.; }')
@@ -11888,7 +11890,7 @@ class CPickler(CMill):
 
     def _T_given_hy(self, mechanism):
         self._write(self.line(' get temperature given enthalpy in mass units and mass fracs'))
-        self._write('void GET_T_GIVEN_HY(double *  h, double *  y, int * iwrk, double * rwrk, double *  t, int * ierr)')
+        self._write('void GET_T_GIVEN_HY(double *  h, double *  y, double *  t, int * ierr)')
         self._write('{')
         self._write('#ifdef CONVERGENCE')
         self._indent()
@@ -11907,12 +11909,12 @@ class CPickler(CMill):
         self._write('double tmax = 4000;'+self.line('min upper bound for thermo def'))
         self._write('double h1,hmin,hmax,cp,t1,dt;')
         self._write('int i;'+self.line(' loop counter'))
-        self._write('CKHBMS(&tmin, y, iwrk, rwrk, &hmin);')
-        self._write('CKHBMS(&tmax, y, iwrk, rwrk, &hmax);')
+        self._write('CKHBMS(&tmin, y, &hmin);')
+        self._write('CKHBMS(&tmax, y, &hmax);')
         self._write('if (hin < hmin) {')
         self._indent()
         self._write(self.line('Linear Extrapolation below tmin'))
-        self._write('CKCPBS(&tmin, y, iwrk, rwrk, &cp);')
+        self._write('CKCPBS(&tmin, y, &cp);')
         self._write('*t = tmin - (hmin-hin)/cp;')
         self._write('*ierr = 1;')
         self._write('return;')
@@ -11921,7 +11923,7 @@ class CPickler(CMill):
         self._write('if (hin > hmax) {')
         self._indent()
         self._write(self.line('Linear Extrapolation above tmax'))
-        self._write('CKCPBS(&tmax, y, iwrk, rwrk, &cp);')
+        self._write('CKCPBS(&tmax, y, &cp);')
         self._write('*t = tmax - (hmax-hin)/cp;')
         self._write('*ierr = 1;')
         self._write('return;')
@@ -11935,8 +11937,8 @@ class CPickler(CMill):
         self._write('}')
         self._write('for (i = 0; i < maxiter; ++i) {')
         self._indent()
-        self._write('CKHBMS(&t1,y,iwrk,rwrk,&h1);')
-        self._write('CKCPBS(&t1,y,iwrk,rwrk,&cp);')
+        self._write('CKHBMS(&t1,y,&h1);')
+        self._write('CKCPBS(&t1,y,&cp);')
         self._write('dt = (hin - h1) / cp;')
         self._write('if (dt > 100.) { dt = 100.; }')
         self._write('else if (dt < -100.) { dt = -100.; }')
