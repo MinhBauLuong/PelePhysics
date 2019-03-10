@@ -22,6 +22,7 @@ endif
 ifeq ($(USE_SDC_FORTRAN), TRUE)
     f90EXE_sources += actual_sdc.f90
     f90EXE_sources += be_chem.f90
-    f90EXE_sources += mod_timers.f90
+    F90EXE_sources += mod_timers.F90
+    F90EXE_sources += mod_sdc_defs.F90
 endif
 

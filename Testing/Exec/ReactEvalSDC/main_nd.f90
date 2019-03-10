@@ -43,8 +43,8 @@ contains
     call transport_init()
 
     numLobato = 2
-    numsdcite = 50
-    call reactor_init_sdc(iE_quienaqun, numLobato, numsdcite, 10)
+    numsdcite = 10
+    call reactor_init_sdc(iE_quienaqun, numLobato, numsdcite, 0)
 
   end subroutine extern_init
   !--------!
@@ -391,7 +391,7 @@ contains
                 mnew(i,j,k,nspec+2)             = react_state_in % T
                 mnew(i,j,k,1:nspec)             = react_state_in % rhoY(1:nspec)
                 rho                             = sum(mnew(i,j,k,1:nspec))
-                mnew(i,j,k,1:nspec)             = mnew(i,j,k,1:nspec)/rho
+                mnew(i,j,k,1:nspec)             = mnew(i,j,k,1:nspec)!/rho
                 !if (istop.eq.1) then
                 !        stop
                 !end if

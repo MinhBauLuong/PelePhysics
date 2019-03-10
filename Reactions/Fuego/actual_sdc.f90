@@ -1,7 +1,8 @@
 module actual_sdc_module
 
   use, intrinsic :: iso_c_binding
-  use amrex_fort_module, only : amrex_real
+  !use amrex_fort_module, only : amrex_real
+  use mod_sdc_defs
   use network, only: nspec, spec_names
   use react_type_module
   use eos_type_module
@@ -10,21 +11,23 @@ module actual_sdc_module
   implicit none
 
   real(amrex_real), private, allocatable :: cdot_k(:,:), cdot_kp1(:,:), I_k(:,:)
-  real(amrex_real), private, allocatable :: rhoydot_ext(:)
-  real(amrex_real), private, allocatable :: rhoh_init(:), rhoe_init(:)
+  real(amrex_real), private, allocatable :: delta_SDC(:,:)
+  real(amrex_real), private, allocatable :: delta_SDC_max(:)
   type (eos_t), private, allocatable     :: eos_state_k(:), eos_state_kp1(:)
   real(amrex_real), private, allocatable :: dtLobato(:)
-  integer                   :: nLobato, nsdcite
-  real(amrex_real)          :: rhohdot_ext, rhoedot_ext
-  integer                   :: iE, verbose, iStiff
+  integer                                :: nLobato, nsdcite
 
 ! Parameters of high order Gauss-Lobatto Lagrange weights       
-  real(amrex_real), parameter :: sqrt5 = SQRT(5.0d0)
+  real(amrex_real), parameter :: sqrt5  = SQRT(5.0d0)
   real(amrex_real), parameter :: sqrt21 = SQRT(21.0d0)
+  real(amrex_real), parameter :: tol    = 1.0d-04
 
 contains
 
+  !--------------------------!
   subroutine actual_reactor_init_sdc(iE_in,nLobato_in,nsdcite_in, iverbose_in)
+
+      use bechem_module, only: init_bechem
 
       implicit none
 
@@ -41,7 +44,7 @@ contains
       !CALL t_total%start
       !CALL t_init%start
 
-      iE = iE_in
+      iE      = iE_in
       nLobato = nLobato_in
       nsdcite = nsdcite_in
       verbose = iverbose_in
@@ -58,18 +61,35 @@ contains
       allocate(rhoydot_ext(nspec))
       allocate(cdot_k(nLobato,nspec+1))
       allocate(cdot_kp1(nLobato,nspec+1))
+      allocate(delta_SDC(nLobato,nspec+1))
+      allocate(delta_SDC_max(nLobato))
       allocate(I_k(nLobato-1,nspec+1))
       allocate(dtLobato(nLobato-1))
+      allocate(rhs(nspec+1))
 
       do i=1,nLobato
           call build(eos_state_k(i))
           call build(eos_state_kp1(i))
       end do
 
+      ! Need molecular weights
+      ! Redundant with use chemistry_module, only : molecular_weight
+      allocate(mwt(nspec))
+      allocate(invmwt(nspec))
+
+      call CKWT(iwrk, rwrk, mwt)
+      invmwt(:)   = 1.0/mwt(:)
+
+      ! Allocate stuff for BE
+      call init_bechem
+
       !CALL t_init%stop
 
   end subroutine actual_reactor_init_sdc
+  !--------------------------!
 
+
+  !--------------------------!
   function actual_react_sdc(react_state_in, react_state_out, dt_react, time)
 
       use amrex_error_module  
@@ -81,14 +101,16 @@ contains
 
       type(react_t),   intent(in   ) :: react_state_in
       type(react_t),   intent(inout) :: react_state_out
-      real(amrex_real), intent(in   ) :: dt_react, time
+      real(amrex_real), intent(in  ) :: dt_react, time
       type(reaction_stat_t)          :: actual_react_sdc
-      integer          :: n, i, j, sdc
-      real(amrex_real) :: rhoInv
+      integer                        :: n, i, j, sdc
+      real(amrex_real)               :: rhoInv
 
-      print *, "----------------------------" 
-      print *, "    STARTING CHEMISTRY SOLVE" 
-      print *, "----------------------------" 
+      if (verbose .ge. 1) then
+          print *, "----------------------------" 
+          print *, "    STARTING CHEMISTRY SOLVE" 
+          print *, "----------------------------" 
+      end if
 
 !     Initialize dt intervals
 !     Compute the Gauss-Lobatto intervals between 0 and dt
@@ -130,7 +152,6 @@ contains
       !External forces for species
       rhoydot_ext(1:nspec) = react_state_in % rhoydot_ext(1:nspec)
       cdot_k(1,1:nspec) = cdot_k(1,1:nspec)* molecular_weight(1:nspec) + rhoydot_ext(:)
-      !cdot_k(1,1:nspec) = cdot_k(1,1:nspec) / 1000.0
       !Compute T source term
       if (iE == 1) then
           cdot_k(1,nspec+1) = rhoedot_ext
@@ -175,6 +196,8 @@ contains
 !         First Lobatto point of each sdc iteration is always the same (previous dt)
           eos_state_kp1(1)     = eos_state_k(1)
           cdot_kp1(1,:)        = cdot_k(1,:)
+          delta_SDC(1,:)       = 0.0d0
+          delta_SDC_max(1)     = 0.0d0
 
 !         Compute the quadrature for the state k     
           call compute_quadrature(I_k, cdot_k, dt_react)
@@ -189,7 +212,7 @@ contains
                       I_k(j,:), j)
           end do
 
-          if (verbose .ge. 2) then
+          if (verbose .ge. 5) then
           !   Only works for ndodecane wang !
               write(*,'(A,3(ES16.8))') "   I_k(O2):",I_k(:,8)
               write(*,'(A,3(ES16.8))') "   c.k(O2):",cdot_k(:,8)
@@ -202,18 +225,27 @@ contains
           end if
 
           do j=2,nLobato
-              if (verbose .ge. 3) then
-                  write(*,'(A,3(ES16.8))') "    deltaT (on each nLobatto) :",eos_state_k(j)%T - eos_state_kp1(j)%T
-              end if
+              delta_SDC(j,nspec+1) = eos_state_k(j)%T - eos_state_kp1(j)%T
+              delta_SDC(j,1:nspec) = eos_state_k(j)%massfrac(1:nspec) - eos_state_kp1(j)%massfrac(1:nspec)
+              delta_SDC_max(j)     = maxval(abs(delta_SDC(j,:)))
               eos_state_k(j) = eos_state_kp1(j) 
               cdot_k(j,:)    = cdot_kp1(j,:)
           end do
+          if (verbose .ge. 3) then
+              write(*,'(A,3(ES16.8))') "    deltaYO2 (on each nLobatto) :",delta_SDC(:,8)
+              write(*,'(A,3(ES16.8))') "    deltaM (on each nLobatto) :",delta_SDC_max(:) 
+          end if
+
 
           if (verbose .ge. 1) then
               write(*,'(A,3(ES16.8))') "    T (end):",eos_state_kp1(1)%T, eos_state_kp1(2)%T, eos_state_kp1(3)%T 
               write(*,'(A,3(ES16.8))') "        rho:",eos_state_kp1(1)%rho, eos_state_kp1(2)%rho, eos_state_kp1(3)%rho 
               print *," "
               print *," "
+          end if
+
+          if ((maxval(delta_SDC_max(:)) < tol) .and. (sdc > 2*nLobato - 2)) then
+              exit
           end if
       end do
 
@@ -258,11 +290,21 @@ contains
 
   subroutine actual_reactor_close_sdc()
 
+      use bechem_module, only: close_bechem
+
       implicit none
+
       integer :: j
 
-      if (allocated(cdot_k)) deallocate(cdot_k)
-      if (allocated(cdot_kp1)) deallocate(cdot_kp1)
+      if (allocated(cdot_k))      deallocate(cdot_k)
+      if (allocated(cdot_kp1))    deallocate(cdot_kp1)
+      if (allocated(rhoydot_ext)) deallocate(rhoydot_ext)
+      if (allocated(I_k))         deallocate(I_k)
+      if (allocated(delta_SDC))   deallocate(delta_SDC)
+      if (allocated(delta_SDC_max))   deallocate(delta_SDC_max)
+      if (allocated(dtLobato))    deallocate(dtLobato)
+      if (allocated(rhoe_init))   deallocate(rhoe_init)
+      if (allocated(rhoh_init))   deallocate(rhoh_init)
 
       do j=1,nLobato
           call destroy(eos_state_k(j))
@@ -271,7 +313,12 @@ contains
 
       deallocate(eos_state_k)
       deallocate(eos_state_kp1)
-   
+
+      if (allocated(mwt))    deallocate(mwt)
+      if (allocated(invmwt)) deallocate(invmwt)
+      
+      call close_bechem
+
   end subroutine actual_reactor_close_sdc
 
 
@@ -279,7 +326,9 @@ contains
 
       double precision, intent(in ) :: dt
 
-      print *,"Computing dt intervals using ", nLobato, " Lobatto nodes"
+      if (verbose .ge. 1) then
+          print *,"Computing dt intervals using ", nLobato, " Lobatto nodes"
+      end if
 
       if (nLobato .eq. 2) then
           dtLobato(1) = dt
@@ -309,7 +358,9 @@ contains
       double precision, intent(in ) :: f(nLobato,nspec+1) 
       double precision, intent(in ) :: dt 
 
-      print *," - Computing quadrature on ", nLobato, " Lobatto nodes"
+      if (verbose .ge. 1) then
+          print *," - Computing quadrature on ", nLobato, " Lobatto nodes"
+      end if
 
       ! We get the interpolating legendre poly bet 0 and dt
       if (nLobato .eq. 2) then
@@ -365,7 +416,6 @@ contains
       use bechem_module, only: bechem
       use chemistry_module, only : molecular_weight
       use eos_module
-      !include 'spec.h'
 
       implicit none
 
@@ -377,17 +427,14 @@ contains
       double precision, intent(in  ) :: cdot_k_jp1(nspec+1)
       double precision, intent(out ) :: cdot_kp1_jp1(nspec+1)
       double precision, intent(in  ) :: I_k_lcl(nspec+1)
-      !double precision, intent(in  ) :: dtLobato 
-      !double precision, intent(in  ) :: dt 
       integer, intent(in  )          :: nlobato
 
-      integer :: n, i, ierr
+      integer           :: n, i, ierr
       double precision  :: rho, Temp
       double precision  :: dtLobato_lcl
-      double precision  :: rYguess(nspec)
+      !double precision  :: rYguess(nspec)
       double precision  :: rY(nspec)
       double precision  :: hguess, eguess
-      double precision  :: rhs(nspec+1)
 
       dtLobato_lcl = dtLobato(nlobato)
 
@@ -416,11 +463,12 @@ contains
             if (verbose .ge. 3) then
                 print *,"   - Call the BE solver (iStiff == 1) "
             end if
-            rYguess(:) = state_k_jp1 % massfrac(:) * rho
+            !rYguess(:) = state_k_jp1 % massfrac(:) * rho
+            rY(:) = state_k_jp1 % massfrac(:) * rho
             if (iE == 1) then
-                call bechem(rY, rYguess, rho, Temp, rhs, rhoedot_ext, rhoydot_ext, dtLobato_lcl, iE, verbose)
+                call bechem(rY, rho, Temp, dtLobato_lcl)
             else
-                call bechem(rY, rYguess, rho, Temp, rhs, rhohdot_ext, rhoydot_ext, dtLobato_lcl, iE, verbose)
+                call bechem(rY, rho, Temp, dtLobato_lcl)
             end if
 !     ... or simple explicit BE scheme
       else
@@ -438,24 +486,22 @@ contains
       state_kp1_jp1%massfrac(1:nspec) = rY(:) / rho
       state_kp1_jp1%T                 = Temp
       state_kp1_jp1%rho               = rho
-      print *, Temp, state_kp1_jp1%T
+      !print *, Temp, state_kp1_jp1%T
       if (iE == 1) then
-          !state_kp1_jp1%e             = (rhoe_init(1) + rhoedot_ext * dt) / rho
           state_kp1_jp1%e             = (rhoe_init(1) + rhoedot_ext * sum(dtLobato(1:nlobato))) / rho
-          print *, state_kp1_j % rho, rho
+          !print *, state_kp1_j % rho, rho
           call eos_re(state_kp1_jp1)
           if (iStiff == 0) then
               call eos_get_activity(state_kp1_jp1)
           end if
       else
-          !state_kp1_jp1%h             = (rhoh_init(1) + dt * rhohdot_ext) / rho
           state_kp1_jp1%h             = (rhoh_init(1) + rhohdot_ext * sum(dtLobato(1:nlobato))) / rho
           call eos_rh(state_kp1_jp1)
           if (iStiff == 0) then
               call eos_get_activity_h(state_kp1_jp1)
           end if
       end if
-      print *, Temp, state_kp1_jp1%T
+      !print *, Temp, state_kp1_jp1%T
 
 
 !     Output new cdot (kp1, jp1)
@@ -466,7 +512,6 @@ contains
       else
           call ckwc(state_kp1_jp1 % T, state_kp1_jp1 % Acti, iwrk, rwrk, cdot_kp1_jp1(1:nspec))
           cdot_kp1_jp1(1:nspec) = cdot_kp1_jp1(1:nspec)* molecular_weight(1:nspec) + rhoydot_ext(:)
-          !cdot_kp1_jp1(1:nspec) = cdot_kp1_jp1(1:nspec) / 1000.0
       end if
 
       !Compute T source term
